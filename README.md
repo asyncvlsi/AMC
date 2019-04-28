@@ -1,6 +1,6 @@
 # AMC :  An Asynchronous Memory (SRAM) Compiler.
 
-<img align="right" width="25%" src="images/test_chp.png">
+<img align="right" width="25%" src="images/test_chip.png">
 
 AMC is an open-source asynchronous pipelined memory compiler. 
 AMC generates SRAM modules with a bundled-data datapath and 
@@ -17,7 +17,7 @@ routing models (.lef).
 
 ## Environment
 
-You must set two environment to your .bashrc:
+You must set two environment variable to your .bashrc:
 
 ```
   export AMC_HOME="$HOME/AMC/compiler"
@@ -31,10 +31,10 @@ You must set two environment to your .bashrc:
 
 If you want to perform DRC and LVS, you will need:
 + Calibre 
-+ [Magic] and [Netgen] (for [SCMOS])
++ Magic and Netgen (for SCMOS technologies)
 
 For characterization and functional verification test you will need:
-+ HSIM & VCS for a Spice-Verilog co-simulation
++ Synopsys HSIM & VCS for a Spice-Verilog co-simulation
 
 
 # Usage
@@ -42,7 +42,7 @@ For characterization and functional verification test you will need:
 You can run AMC from the command line using a single configuration file. 
 
 ```
-python3 $AMC_HOME/AMC.py example_config.py
+python $AMC_HOME/AMC.py example_config.py
 ```
 
 In *example_config.py* file you can specify the following parameters:
@@ -51,19 +51,19 @@ In *example_config.py* file you can specify the following parameters:
 # Data word size
 word_size = 16
 
-#Number of rows in each memory bank
+# Number of rows in each memory bank
 num_rows = 64
 
 # Number of words in each memory row (num_columns = word_size * words_per_row)
 words_per_row = 2
 
-#Number of sub-banks in each bank
+# Number of sub-banks in each bank
 num_subanks = 8
 
-#Branch factors (number of inner-banks and outer-banks)
+# Branch factors (number of inner-banks and outer-banks)
 branch_factors = (2,4)
 
-#Bank orientations (orientation of inner-banks and outer-banks)
+# Bank orientations (orientation of inner-banks and outer-banks)
 bank_orientation = ("V", "H")
 
 # Output directory for the results
