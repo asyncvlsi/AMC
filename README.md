@@ -1,4 +1,4 @@
-# AMC :  An Asynchronous Memory (SRAM) Compiler.
+# AMC : Asynchronous Memory (SRAM) Compiler.
 
 <img align="right" width="25%" src="images/test_chip.png">
 
