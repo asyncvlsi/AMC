@@ -1,0 +1,146 @@
+magic
+tech scmos
+timestamp 1555438136
+<< nwell >>
+rect -4 34 38 68
+<< pwell >>
+rect -4 68 38 129
+rect -4 0 38 34
+<< ntransistor >>
+rect 8 105 10 109
+rect 16 105 18 109
+rect 8 77 10 81
+rect 16 77 18 81
+rect 16 24 18 28
+<< ptransistor >>
+rect 8 56 10 60
+rect 16 56 18 60
+rect 24 56 26 60
+rect 16 40 18 44
+<< ndiffusion >>
+rect 7 105 8 109
+rect 10 105 11 109
+rect 15 105 16 109
+rect 18 105 19 109
+rect 3 80 8 81
+rect 7 77 8 80
+rect 10 77 11 81
+rect 15 77 16 81
+rect 18 77 19 81
+rect 15 24 16 28
+rect 18 24 19 28
+<< pdiffusion >>
+rect 7 56 8 60
+rect 10 56 11 60
+rect 15 56 16 60
+rect 18 56 19 60
+rect 23 56 24 60
+rect 26 56 27 60
+rect 15 40 16 44
+rect 18 40 19 44
+<< ndcontact >>
+rect 3 105 7 109
+rect 11 105 15 109
+rect 19 105 23 109
+rect 3 76 7 80
+rect 11 77 15 81
+rect 19 77 23 81
+rect 11 24 15 28
+rect 19 24 23 28
+<< pdcontact >>
+rect 3 56 7 60
+rect 11 56 15 60
+rect 19 56 23 60
+rect 27 56 31 60
+rect 11 40 15 44
+rect 19 40 23 44
+<< psubstratepcontact >>
+rect 22 120 26 124
+rect 27 18 31 22
+<< nsubstratencontact >>
+rect 3 48 7 52
+<< polysilicon >>
+rect 8 109 10 112
+rect 16 109 18 111
+rect 8 103 10 105
+rect 16 102 18 105
+rect 8 81 10 83
+rect 16 81 18 84
+rect 8 70 10 77
+rect 9 66 10 70
+rect 8 60 10 66
+rect 16 60 18 77
+rect 24 60 26 62
+rect 8 54 10 56
+rect 16 54 18 56
+rect 16 44 18 46
+rect 16 28 18 40
+rect 24 36 26 56
+rect 16 14 18 24
+<< polycontact >>
+rect 7 112 11 116
+rect 15 98 19 102
+rect 15 84 19 88
+rect 5 66 9 70
+rect 22 32 26 36
+rect 15 10 19 14
+<< metal1 >>
+rect 0 121 22 124
+rect 20 120 22 121
+rect 30 121 34 124
+rect 20 109 23 120
+rect 0 95 34 98
+rect 0 88 34 90
+rect 0 87 15 88
+rect 19 87 34 88
+rect 0 67 5 70
+rect 9 67 34 70
+rect 3 52 7 56
+rect 0 48 3 51
+rect 28 51 31 56
+rect 7 48 34 51
+rect 11 44 15 48
+rect 20 36 23 40
+rect 20 32 22 36
+rect 20 28 23 32
+rect 12 21 15 24
+rect 12 18 27 21
+rect 0 11 15 14
+rect 19 11 34 14
+<< m2contact >>
+rect 26 120 30 124
+rect 11 112 15 116
+rect 3 101 7 105
+rect 3 80 7 84
+rect 19 73 23 77
+rect 19 60 23 64
+rect 27 22 31 26
+<< metal2 >>
+rect 3 127 7 129
+rect 3 116 7 123
+rect 3 112 11 116
+rect 3 84 6 101
+rect 20 64 23 73
+rect 20 51 23 60
+rect 5 48 23 51
+rect 5 0 8 48
+rect 27 26 30 120
+<< m3contact >>
+rect 3 123 7 127
+<< metal3 >>
+rect 2 127 8 129
+rect 2 123 3 127
+rect 7 123 8 127
+rect 2 122 8 123
+<< m3p >>
+rect 0 0 34 129
+<< labels >>
+rlabel metal1 0 11 0 11 2 reset
+rlabel metal2 5 0 5 0 1 Q
+rlabel metal1 0 67 0 67 3 en2_M
+rlabel metal1 0 95 0 95 3 M
+rlabel metal1 0 121 0 121 5 gnd
+rlabel metal1 0 48 0 48 5 vdd
+rlabel metal2 3 129 3 129 5 D
+rlabel metal1 0 87 0 87 3 en1_M
+<< end >>
