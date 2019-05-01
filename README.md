@@ -8,6 +8,10 @@ quasi-delay-insensitive control. AMC is a Python-base, flexible, user-modifiable
 technology-independent memory compiler that generates fabricable 
 SRAM blocks in a broad range of sizes, configurations and process nodes.
 
+The description of the circuits AMC generates and the compiler
+can be found in the following paper:
+   * Samira Ataei and Rajit Manohar. AMC: An Asynchronous Memory Compiler. Proceedings of the IEEE International Symposium on Asynchronous Circuits and Systems (ASYNC), May 2019.
+
 AMC generates GDSII layout data, standard SPICE netlists, Verilog models, 
 DRC/LVS verification reports, timing and power models (.lib), and placement and 
 routing models (.lef). 
