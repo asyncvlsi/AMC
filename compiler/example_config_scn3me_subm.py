@@ -5,7 +5,6 @@ num_subanks = 2
 branch_factors = (1,4)
 bank_orientations = ("V", "H")
 name = "AMC_SRAM"
-AMC_temp = os.path.abspath(os.environ.get("AMC_HOME")) + "/tmp/"
 
 tech_name = "scn3me_subm"
 process_corners = ["TT"]
