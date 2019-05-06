@@ -68,13 +68,7 @@ class functional_test():
         spice_name=sram_name
 
         self.dut.write("\n ")
-        #Don't trim the netlist for power calculations
-        #if OPTS.trim_netlist:
-            #filename="{0}{1}".format(OPTS.AMC_temp, "{0}.sp".format(sram_name))
-            #reduced_file="{0}{1}".format(OPTS.AMC_temp, "reduced.sp")
-            #trim_spice.trim_spice(filename, reduced_file, dbits, w_per_row, num_rows, "1"*abits, "0"*abits)
-            #spice_name="reduced"
-        
+
         self.dut.write(".inc {0}.sp\n\n".format(spice_name))
         #self.dut.write("V{0} {0} 0 dc {1}v\n".format("test"+self.vdd_name, self.voltage))
         #self.dut.write("V{0} {0} 0 dc 0.0v\n".format("test"+self.gnd_name))
@@ -207,9 +201,9 @@ class functional_test():
                            (0.5*self.voltage), (0.5*self.voltage), 
                            "RISE", "FALL", 1, 3, "0.001n")
 
-        self.gen_meas_power("leakage_power", "5n", "100n")
+        self.gen_meas_power("leakage_power", "1n", "4n")
         
-        self.gen_meas_current("write_current", "5n", "w_intvl")
+        self.gen_meas_current("write_current", "5n", "w_intvl+5n")
         self.gen_meas_current("read_current", "w_intvl+5n", "w_intvl+r_intvl+5n")
         self.gen_meas_current("read_write_current", "w_intvl+r_intvl+5n", "w_intvl+r_intvl+rw_intvl+5n")
         
