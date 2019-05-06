@@ -1,3 +1,11 @@
+""" BSD 3-Clause License
+    Copyright (c) 2018-2019 Regents of the University of California and The Board
+    of Regents for the Oklahoma Agricultural and Mechanical College
+    (acting for and on behalf of Oklahoma State University)
+    All rights reserved.
+"""
+
+
 import os
 
 """ File containing the process technology parameters for SCMOS 3me, subm, 600nm. """

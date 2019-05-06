@@ -1,3 +1,12 @@
+""" BSD 3-Clause License
+    Copyright (c) 2018-2019 Regents of the University of California and The Board
+    of Regents for the Oklahoma Agricultural and Mechanical College
+    (acting for and on behalf of Oklahoma State University)
+    All rights reserved.
+"""
+
+
+
 """ This provides a set of useful generic types for the gdsMill interface. """
 import debug
 from vector import vector

@@ -1,3 +1,11 @@
+
+""" BSD 3-Clause License
+    Copyright (c) 2018-2019 Regents of the University of California and The Board
+    of Regents for the Oklahoma Agricultural and Mechanical College
+    (acting for and on behalf of Oklahoma State University)
+    All rights reserved.
+"""
+
 """ Run a regresion test on column_multiplexer_array. """
 
 from testutils import header,AMC_test,unittest
