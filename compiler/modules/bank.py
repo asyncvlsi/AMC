@@ -185,7 +185,7 @@ class bank(design.design):
 
         if self.num_subanks > 1:
             self.bitcell_array_drv = self.single_driver_array(rows=self.num_rows, 
-                                                     name="bitcell_ary_drv")
+                                                     name="bitcell_array_drv")
             self.add_mod(self.bitcell_array_drv)
 
             self.pchg_drv = self.single_driver_array(rows=1, name="pchg_drv")
