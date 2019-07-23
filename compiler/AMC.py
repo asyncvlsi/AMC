@@ -54,7 +54,10 @@ report_status()
 
 import sram
 
-print("\n Output files are " + OPTS.output_name + ".(sp|gds|v|lib|lef)")
+print("\n Output files are " + OPTS.output_name + ".(sp|gds|v|lef)")
+
+# Characterizer is slow and deactivated by default
+print("For .lib file: set the \"characterize = True\" in options.py, invoke Synopsys HSIM and VCS tools and rerun.\n")
 
 # Keep track of running stats
 start_time = datetime.datetime.now()
@@ -75,5 +78,6 @@ s.save_output()
 # Delete temp files etc.
 end_AMC()
 print_time("End",datetime.datetime.now(), start_time)
+
 
 
