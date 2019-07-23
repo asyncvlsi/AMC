@@ -5,6 +5,7 @@ num_subanks = 2
 branch_factors = (1,4)
 bank_orientations = ("V", "H")
 name = "AMC_SRAM"
+output_path = "amc_scn3me"
 
 tech_name = "scn3me_subm"
 process_corners = ["TT"]
