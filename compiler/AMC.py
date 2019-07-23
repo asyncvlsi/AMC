@@ -23,6 +23,7 @@ a LEF (.lef) file for preliminary P&R
 a Liberty (.lib) file for timing analysis/optimization
 
 """
+#!/usr/bin/env python2
 
 import sys, os
 import datetime
