@@ -348,7 +348,7 @@ class VlsiLayout:
         #add the sref to the root structure
         self.structures[self.rootStructureName].srefs+=[layoutToAddSref]        
         
-    def addBox(self,layerNumber=0, purposeNumber=None, offsetInMicrons=(0,0), width=1.0, height=1.0,center=False):
+    def addBox(self,layerNumber=0, purposeNumber=0, dataType= None, offsetInMicrons=(0,0), width=1.0, height=1.0,center=False):
         """
         Method to add a box to a layout
         """
@@ -377,13 +377,13 @@ class VlsiLayout:
 
         boundaryToAdd = GdsBoundary()
         boundaryToAdd.drawingLayer = layerNumber
-        boundaryToAdd.dataType = 0
+        boundaryToAdd.dataType = dataType
         boundaryToAdd.coordinates = coordinates
         boundaryToAdd.purposeLayer = purposeNumber
         #add the sref to the root structure
         self.structures[self.rootStructureName].boundaries+=[boundaryToAdd]
     
-    def addPath(self, layerNumber=0, purposeNumber = None, coordinates=[(0,0)], width=1.0):
+    def addPath(self, layerNumber=0, purposeNumber = 0, coordinates=[(0,0)], width=1.0):
         """
         Method to add a path to a layout
         """
@@ -402,12 +402,12 @@ class VlsiLayout:
         #add the sref to the root structure
         self.structures[self.rootStructureName].paths+=[pathToAdd]
         
-    def addText(self, text, layerNumber=0, purposeNumber = None, offsetInMicrons=(0,0), magnification=0.1, rotate = None):
-        offsetInLayoutUnits = (self.userUnits(offsetInMicrons[0]),self.userUnits(offsetInMicrons[1]))
+    def addText(self, text, layerNumber=0, purposeNumber = 0, dataType = 0, offsetInMicrons=(0,0), magnification=0.1, rotate = None):
+	offsetInLayoutUnits = (self.userUnits(offsetInMicrons[0]),self.userUnits(offsetInMicrons[1]))
         textToAdd = GdsText()
         textToAdd.drawingLayer = layerNumber
         textToAdd.purposeLayer = purposeNumber
-        textToAdd.dataType = 0
+        textToAdd.dataType = dataType
         textToAdd.coordinates = [offsetInLayoutUnits]
         if(len(text)%2 == 1):
             #pad with a zero
@@ -653,7 +653,7 @@ class VlsiLayout:
         """
         Return the coordinates in DB units and layer of all matching labels
         """
-        label_list = []
+	label_list = []
         label_layer = None
         label_coordinate = [None, None]
 

@@ -159,8 +159,10 @@ class Gds2writer:
             self.writeRecord(idBits+mask)
         if("units" in self.layoutObject.info):
             idBits='\x03\x05'  
+
             userUnits=self.ibmDataFromIeeeDouble(self.layoutObject.info["units"][0])
             dbUnits=self.ibmDataFromIeeeDouble((self.layoutObject.info["units"][0]*1e-6/self.layoutObject.info["units"][1])*self.layoutObject.info["units"][1])
+	    #dbUnits="1"
 
             #User Units are hardcoded, since the floating point implementation of gdsMill is not adequate, 
 		#resulting in a different value being written in output stream.  Hardcoded to sram compiler's outputed gds units.
@@ -368,8 +370,9 @@ class Gds2writer:
             drawingLayer = struct.pack(">h",thisText.drawingLayer)
             self.writeRecord(idBits+drawingLayer)
         #if(thisText.purposeLayer):
-            idBits='\x16\x02' #purpose layer
-            purposeLayer = struct.pack(">h",thisText.purposeLayer)
+	    idBits='\x16\x02' #purpose layer
+            purposeLayer = struct.pack(">h",thisText.purposeLayer) #changed by SAMIRA
+	    #purposeLayer = struct.pack(">h",thisText.dataType)
             self.writeRecord(idBits+purposeLayer)
         if(thisText.transFlags != ""):
             idBits='\x1A\x01'
@@ -387,7 +390,7 @@ class Gds2writer:
             rotateAngle=self.ibmDataFromIeeeDouble(thisText.rotateAngle)
             self.writeRecord(idBits+rotateAngle)
         if(thisText.pathType !=""):
-            idBits='\x21\x02'  #Path type
+	    idBits='\x21\x02'  #path type
             pathType = struct.pack(">h",thisText.pathType)
             self.writeRecord(idBits+pathType)
         if(thisText.pathWidth != ""):
