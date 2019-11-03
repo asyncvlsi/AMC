@@ -14,7 +14,6 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-
 import design
 import debug
 import contact
@@ -32,9 +31,10 @@ class single_driver_array(design.design):
 
         self.rows = rows
         
-        self.x_offset0 = 6*self.m1_space
+        self.x_offset0 = 7*self.m1_space
         self.width = self.x_offset0 + self.single_driver.width
-        self.height = self.single_driver.height * self.rows
+        #each single driver cell 4 drivers
+        self.height = self.single_driver.height * (self.rows/4)
 
         self.add_pins()
         self.create_layout()
@@ -51,75 +51,109 @@ class single_driver_array(design.design):
     def create_layout(self):
         """ Add single_driver cells and then route"""
         
-        power_layer = self.single_driver.get_pin("vdd").layer
-        if (power_layer=="metal1" or power_layer=="m1pin"):
-            self.power_layer = "metal1"
-            self.power_pin_layer = self.m1_pin_layer
-            self.pin_width= contact.m1m2.width
-        else:
-            self.power_layer = "metal3"
-            self.power_pin_layer = self.m3_pin_layer
-            self.pin_width= contact.m2m3.width
-        
-        self.add_layout_pin(text="gnd", 
-                            layer=self.power_pin_layer, 
-                            offset=[self.x_offset0, -0.5*self.pin_width], 
-                            width=self.pin_width, 
-                            height=self.pin_width)
+        for i in range(self.rows/4):
+            name = "single_driver{}".format(i)
+            y_offset = self.single_driver.height*i
 
-        for row in range(self.rows):
-            name = "single_driver{}".format(row)
-
-            if (row % 2):
-                y_offset = self.single_driver.height*(row + 1)
+            if (i % 2):
+                y_offset = y_offset+self.single_driver.height
                 mirror = "MX"
-                pin_name = "gnd"
+                pin_list=["in[{0}]".format(4*i+3), "in[{0}]".format(4*i+2),
+                          "in[{0}]".format(4*i+1), "in[{0}]".format(4*i),
+                          "out[{0}]".format(4*i+3), "out[{0}]".format(4*i+2),
+                          "out[{0}]".format(4*i+1),"out[{0}]".format(4*i),
+                          "en", "vdd", "gnd"]
             else:
-                y_offset = self.single_driver.height*row
+                
                 mirror = "R0"
-                pin_name = "vdd"
+                pin_list=["in[{0}]".format(4*i), "in[{0}]".format(4*i+1),
+                          "in[{0}]".format(4*i+2), "in[{0}]".format(4*i+3),
+                          "out[{0}]".format(4*i), "out[{0}]".format(4*i+1),
+                          "out[{0}]".format(4*i+2),"out[{0}]".format(4*i+3),
+                          "en", "vdd", "gnd"]
 
-            offset=[self.x_offset0, y_offset]
-            
             # add single_driver
             single_driver_inst=self.add_inst(name=name, 
                                              mod=self.single_driver, 
-                                             offset=offset, 
+                                             offset=[self.x_offset0, y_offset], 
                                              mirror=mirror)
-            self.connect_inst(["in[{0}]".format(row), "out[{0}]".format(row), "en", "vdd", "gnd"])
+            self.connect_inst(pin_list)
 
             # vdd, gnd connection
-            yoffset = (row + 1) * self.single_driver.height -0.5*self.pin_width
-            self.add_layout_pin(text=pin_name, 
-                                layer=self.power_pin_layer, 
-                                offset=[self.x_offset0, yoffset], 
-                                width=self.pin_width, 
-                                height=self.pin_width)
+            for vdd_pin in single_driver_inst.get_pins("vdd"):
+                if (vdd_pin.layer=="metal1" or vdd_pin.layer=="m1pin"):
+                    pin_width = contact.m1m2.width
+                else:
+                    pin_width = contact.m2m3.width
+
+                self.add_layout_pin(text="vdd", 
+                                    layer=vdd_pin.layer, 
+                                    offset=vdd_pin.ll(), 
+                                    width=pin_width, 
+                                    height=pin_width)
+
+            for gnd_pin in single_driver_inst.get_pins("gnd"):
+                if (gnd_pin.layer=="metal1" or gnd_pin.layer=="m1pin"):
+                    pin_width = contact.m1m2.width
+                else:
+                    pin_width = contact.m2m3.width
+
+                self.add_layout_pin(text="gnd", 
+                                    layer=gnd_pin.layer, 
+                                    offset=gnd_pin.ll(), 
+                                    width=pin_width, 
+                                    height=pin_width)
 
             # en connection
-            en_pin = single_driver_inst.get_pin("in0")
-            en_pos = en_pin.lc()
-            en_offset = vector(2*self.m1_space, en_pos.y)
-            self.add_segment_center(layer="metal1",  start=en_offset,  end=en_pos)
-            self.add_via(self.m1_stack,(en_offset.x+contact.m1m2.height, en_offset.y-0.5*self.m1_width), 
-                         rotate=90)
+            en_pin = single_driver_inst.get_pin("en")
+            if (en_pin.layer=="metal1" or en_pin.layer=="m1pin"):
+                pin_layer = "metal1"
+                pin_width= self.m1_width
+                layer_stack = self.m1_stack
+                contact_height= contact.m1m2.height
+                
+            else:
+                pin_width = "metal3"
+                pin_width= self.m3_width
+                layer_stack = self.m2_stack
+                contact_height= contact.m2m3.height
 
-            # output pins on the right
-            out_pin = single_driver_inst.get_pin("out")
-            self.add_layout_pin_center_segment(text="out[{0}]".format(row), 
-                                               layer=self.m1_pin_layer, 
-                                               start=out_pin.rc(), 
-                                               end=out_pin.rc()-vector(self.m1_width,0))
+            self.add_rect(layer=pin_layer,
+                          offset= vector(2*self.m1_space, en_pin.by()),
+                          width=en_pin.lx()-2*self.m1_space,
+                          height=pin_width)
+            self.add_via(layer_stack,(2*self.m1_space+contact_height, en_pin.by()), rotate=90)
 
-            # input pins on the left
-            in_pin=single_driver_inst.get_pin("in1").ll()
-            self.add_layout_pin(text="in[{0}]".format(row), 
-                                layer=self.m1_pin_layer,
-                                offset=in_pin,
-                                width=contact.m1m2.width,
-                                height=contact.m1m2.width)
-        
-        #connect en connections of all drivers togrther
+
+            # output each OUT on the right
+            for j in range(4):
+                if i%2:
+                    text_out = "out[{0}]".format(4*i+(3-j))
+                    text_in="in[{0}]".format(4*i+(3-j))
+                else:
+                    text_out = "out[{0}]".format(4*i+j)
+                    text_in="in[{0}]".format(4*i+j)
+
+
+                out_pin = single_driver_inst.get_pin("out{0}".format(j))
+                in_pin = single_driver_inst.get_pin("in{0}".format(j))
+                if (out_pin.layer=="metal1" or out_pin.layer=="m1pin"):
+                    pin_width = self.m1_width
+                else:
+                    pin_width = self.m3_width
+                self.add_layout_pin(text=text_out, 
+                                    layer=out_pin.layer,
+                                    offset= (self.width-pin_width, out_pin.by()),
+                                    width=pin_width, 
+                                    height=pin_width)
+
+                self.add_layout_pin(text=text_in, 
+                                    layer=in_pin.layer,
+                                    offset= in_pin.ll(),
+                                    width=pin_width, 
+                                    height=pin_width)
+
+        # Wordline enable connection
         self.add_rect(layer="metal2", 
                       offset=[2*self.m1_space,0], 
                       width=self.m2_width, 
@@ -129,3 +163,4 @@ class single_driver_array(design.design):
                                    offset=[2*self.m1_space,0], 
                                    width=self.m2_width, 
                                    height=self.m2_width)
+

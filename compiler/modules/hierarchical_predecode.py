@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import design
@@ -85,12 +85,13 @@ class hierarchical_predecode(design.design):
     def create_rails(self):
         """ Create all of the rails for the inputs and vdd/gnd/inputs_bar/inputs """
         
+        y_shift= self.nand.get_pin("A").by()
         for label in self.rails.keys():
             if label.startswith("in"):
                 self.add_rect(layer="metal2",
                               offset=vector(self.rails[label]-0.5*self.m2_width, 0), 
                               width=self.m2_width,
-                              height=self.height - 2*self.m2_space)
+                              height=self.height - y_shift)
                 self.add_layout_pin(text=label,
                                     layer=self.m2_pin_layer,
                                     offset=vector(self.rails[label]-0.5*self.m2_width, 0), 
@@ -100,7 +101,7 @@ class hierarchical_predecode(design.design):
                 self.add_rect(layer="metal2",
                               offset=vector(self.rails[label]-0.5*self.m2_width, 0), 
                               width=self.m2_width,
-                              height=self.height - 2*self.m2_space)
+                              height=self.height - y_shift)
 
     def add_input_inverters(self):
         """ Create the input inverters to invert input signals for the decode stage. """
@@ -223,7 +224,7 @@ class hierarchical_predecode(design.design):
                 y_offset = inv_num*self.inv.height+self.nand_inst[0].get_pin(pin[inv_num]).lc().y
 
             inv_out_pos = self.in_inst[inv_num].get_pin("Z").ur()
-            if y_offset > self.in_inst[inv_num].get_pin("Z").ur().y:
+            if y_offset > self.in_inst[inv_num].get_pin("Z").uy():
                 inv_out_pos = self.in_inst[inv_num].get_pin("Z").lr()
             
             rail_pos = vector(self.rails[out_pin],y_offset)

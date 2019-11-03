@@ -1,18 +1,8 @@
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor,
-# Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
-
+# BSD 3-Clause License (See LICENSE.OR for licensing information)
+# Copyright (c) 2016-2019 Regents of the University of California 
+# and The Board of Regents for the Oklahoma Agricultural and 
+# Mechanical College (acting for and on behalf of Oklahoma State University)
+# All rights reserved.
 
 
 import design
@@ -327,10 +317,10 @@ class hierarchical_decoder(design.design):
             for i in range(4):
                 out_pos = self.decode_stage_inst[row].get_pin("out{0}".format(i))
                 self.add_layout_pin(text="decode[{0}]".format(4*row+i),
-                                layer=out_pos.layer,
-                                offset=out_pos.ll(),
-                                width=out_pos.width(),
-                                height=out_pos.height())
+                                    layer=out_pos.layer,
+                                    offset=out_pos.ll(),
+                                    width=out_pos.width(),
+                                    height=out_pos.height())
 
 
     def add_decode_stage(self, decode_stage_mod):
@@ -344,11 +334,16 @@ class hierarchical_decoder(design.design):
             else:
                 y_off = self.predecoder_height + decode_stage_mod.height*row 
 
-            y_dir = 1
-            mirror = "R0"
+            if row%2:
+                mirror = "MX"
+                y_off = y_off + decode_stage_mod.height
+            else:             
+                mirror = "R0"
+
             self.decode_stage_inst.append(self.add_inst(name=name,
                                           mod=decode_stage_mod,
-                                          offset=[self.routing_width, y_off]))
+                                          offset=[self.routing_width, y_off],
+                                          mirror = mirror))
 
 
     def create_vertical_rail(self):
@@ -434,12 +429,12 @@ class hierarchical_decoder(design.design):
                     if (pin.layer == "m3pin" or pin.layer == "metal3"):
                         pin_layer = "metal3"
                     self.add_rect(layer=pin_layer,
-                                  offset=(0, pin.ll().y),
+                                  offset=(0, pin.by()),
                                   width=self.width,
                                   height=contact.m1m2.width)
                     self.add_layout_pin(text="vdd",
                                         layer=pin.layer,
-                                        offset=(0, pin.ll().y),
+                                        offset=(0, pin.by()),
                                         width=contact.m1m2.width,
                                         height=contact.m1m2.width)
 
@@ -450,12 +445,12 @@ class hierarchical_decoder(design.design):
                     if (pin.layer == "m3pin" or pin.layer == "metal3"):
                         pin_layer = "metal3"
                     self.add_rect(layer=pin_layer,
-                                  offset=(0,pin.ll().y),
+                                  offset=(0,pin.by()),
                                   width=self.width,
                                   height=contact.m1m2.width)
                     self.add_layout_pin(text="gnd",
                                         layer=pin.layer,
-                                        offset=(0, pin.ll().y),
+                                        offset=(0, pin.by()),
                                         width=contact.m1m2.width,
                                         height=contact.m1m2.width)
         

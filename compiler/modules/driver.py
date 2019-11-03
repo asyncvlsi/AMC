@@ -2,7 +2,8 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
+
 
 import design
 import debug
@@ -45,7 +46,7 @@ class driver(design.design):
     def add_driver(self):
         """ Add nand2 + inv cells"""
         
-        self.x_offset1 = 2*self.m1_width + 5*self.m1_space
+        self.x_offset1 = 7*self.m1_space
         self.x_offset2 = self.x_offset1 + self.nand2.width
         self.width = self.x_offset2 + self.inv.width
         
@@ -74,7 +75,7 @@ class driver(design.design):
             inv2_offset=[self.x_offset2, y_offset]
             base_offset = vector(self.width, y_offset)
 
-            yoffset = (row + 1) * self.inv.height - 0.5 * self.m1_width
+            yoffset = (row + 1) * self.inv.height - 0.5 * contact.m1m2.width
             self.add_layout_pin(text=pin_name, 
                                 layer=self.m1_pin_layer, 
                                 offset=[self.x_offset1, yoffset], 
@@ -127,11 +128,11 @@ class driver(design.design):
 
         # Wordline enable connection
         en_pin=self.add_rect(layer="metal2", 
-                             offset=[self.m1_width + 2*self.m1_space,0], 
+                             offset=[2*self.m1_space,0], 
                              width=self.m2_width, 
                              height=self.height)
         en_pin=self.add_layout_pin(text="en", 
                                    layer=self.m2_pin_layer, 
-                                   offset=[self.m1_width + 2*self.m1_space,0], 
+                                   offset=[2*self.m1_space,0], 
                                    width=self.m2_width, 
                                    height=self.m2_width)

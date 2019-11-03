@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import design
@@ -46,7 +46,14 @@ class precharge_array(design.design):
         for i in range(self.columns):
             name = "pre_column_{0}".format(i)
             offset = vector(self.pc_cell.width * i, 0)
-            inst=self.add_inst(name=name, mod=self.pc_cell, offset=offset)
+            
+            if i%2:
+                mirror="MY"
+                offset = vector(self.pc_cell.width * (i+1), 0)
+            else:
+                mirror = "R0"
+            inst=self.add_inst(name=name, mod=self.pc_cell, offset=offset, mirror = mirror)
+            
             bl_pin = inst.get_pin("bl")
             self.add_layout_pin(text="bl[{0}]".format(i), 
                                 layer=self.m2_pin_layer, 

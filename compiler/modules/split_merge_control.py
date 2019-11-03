@@ -14,7 +14,6 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-
 import design
 import debug
 import contact
@@ -23,6 +22,7 @@ from vector import vector
 from pinv import pinv
 from nor3 import nor3
 from nand2 import nand2
+from utils import ceil
 from hierarchical_predecode2x4 import hierarchical_predecode2x4 as pre2x4
 
 class split_merge_control(design.design):
@@ -38,6 +38,8 @@ class split_merge_control(design.design):
         self.num_banks= num_banks
         self.create_layout()
         self.offset_all_coordinates()
+        #self.translate_all(vector(0, -self.via_shift("v1")))
+
         sizes= self.find_highest_coords()
         self.width= sizes[0]
         self.height= sizes[1]
@@ -219,12 +221,12 @@ class split_merge_control(design.design):
         for i in range(self.num_banks):
             if i%2:
                 mirror= "MX"
-                nand_off= vector(self.dec_inst.lr().x+(i+1)*self.nand2.height+self.off_shift,
-                                      self.gate_y_off+self.nand2.width+self.inv5.width)
+                nand_off= vector(self.dec_inst.rx()+(i+1)*self.nand2.height+self.off_shift,
+                                 self.gate_y_off+self.nand2.width+self.inv5.width)
             else:
                 mirror= "R0"
-                nand_off= vector(self.dec_inst.lr().x+i*self.nand2.height+self.off_shift,
-                                      self.gate_y_off+self.nand2.width+self.inv5.width)
+                nand_off= vector(self.dec_inst.rx()+i*self.nand2.height+self.off_shift,
+                                 self.gate_y_off+self.nand2.width+self.inv5.width)
             self.nand2_inst[i]=self.add_inst(name="decoder_nand2_{0}".format(i), 
                                              mod=self.nand2, 
                                              offset=nand_off, 
@@ -242,16 +244,16 @@ class split_merge_control(design.design):
             self.connect_inst(temp)
 
             self.dec_inv_inst[i]=self.add_inst(name="decoder_inv_{0}".format(i), 
-                                             mod=self.inv5, 
-                                             offset=nand_off-vector(0, self.nand2.width), 
-                                             rotate=270,
-                                             mirror= mirror )
+                                               mod=self.inv5, 
+                                               offset=nand_off-vector(0, self.nand2.width), 
+                                               rotate=270,
+                                               mirror= mirror )
             self.connect_inst(["to_sel[{0}]".format(i), "sel[{0}]".format(i), "vdd", "gnd"])
 
     def add_Mrw_gate(self):
         """ Add nor3 and inverter for r, w and rw inputs and Mrw output"""
 
-        nor_off= vector(self.nand2_inst[self.num_banks-1].lr().x+self.inv.height+self.off_shift,
+        nor_off= vector(self.nand2_inst[self.num_banks-1].rx()+self.inv.height+self.off_shift,
                              self.gate_y_off)
         self.nor_inst=self.add_inst(name="nor", 
                                     mod=self.nor3, 
@@ -260,7 +262,7 @@ class split_merge_control(design.design):
                                     rotate=90)
         self.connect_inst(["r", "w", "rw", "Mnor", "vdd", "gnd"])
         
-        inv_off= vector(self.nor_inst.lr().x, self.gate_y_off + self.nor3.width)
+        inv_off= vector(self.nor_inst.rx(), self.gate_y_off + self.nor3.width)
         self.inv_inst=self.add_inst(name="inv", 
                                     mod=self.inv, 
                                     offset=inv_off,
@@ -273,11 +275,11 @@ class split_merge_control(design.design):
         self.ack_b_bank_inst={}
         for i in range(self.num_banks):
             if i%2:
-                ack_b_off= vector(self.nor_inst.lr().x+(i+1)*self.inv.height+self.off_shift,
+                ack_b_off= vector(self.nor_inst.rx()+(i+1)*self.inv.height+self.off_shift,
                                   self.gate_y_off)
                 mirror ="R0"
             else:
-                ack_b_off= vector(self.nor_inst.lr().x+i*self.inv.height+self.off_shift, 
+                ack_b_off= vector(self.nor_inst.rx()+i*self.inv.height+self.off_shift, 
                                        self.gate_y_off)
                 mirror ="MX"
             self.ack_b_bank_inst[i]=self.add_inst(name="ack_b_bank_inv{0}".format(i), 
@@ -292,7 +294,7 @@ class split_merge_control(design.design):
 
         self.pre_ack_b_inst={}
         for i in range(3):
-            pre_ack_b_off= vector(self.ack_b_bank_inst[self.num_banks-1].lr().x+ \
+            pre_ack_b_off= vector(self.ack_b_bank_inst[self.num_banks-1].rx()+ \
                                   self.inv.height+self.off_shift, self.gate_y_off+i*self.inv2.width)
 
             if i==2:
@@ -368,15 +370,6 @@ class split_merge_control(design.design):
         self.add_path("metal1", [self.wack_b_inst[1].get_pin("A").uc(), self.wack_b_inst[0].get_pin("Z").lc()])
         self.add_path("metal1", [self.wack_b_inst[2].get_pin("A").uc(), self.wack_b_inst[1].get_pin("Z").lc()])
 
-
-    def add_minarea_metal(self, pin):
-        """ Adding extra metal1 at inverter outputs to avoid min area metal violation """
-        
-        self.add_rect(layer ="metal1",
-                      offset=(pin.x-0.5*self.m1_width, pin.y),
-                      width=self.m1_width,
-                      height=self.m1_minarea/self.m1_width)
-
     def cxn_inv_output(self, pin1, pin2):
         """ Connecting the output of inv to coresponding rail with metal3
             Adding Via2 at the inv out and rail for connection """
@@ -387,8 +380,8 @@ class split_merge_control(design.design):
         contact_yshift= m1m2_m2m3_fix+self.m1_width+contact.m2m3.height
 
         self.add_path("metal3",[pin1, (pin1.x, pin2.y)])
-        self.add_via(self.m2_stack,(pin1.x-contact_xshift, pin2.y-m1m2_m2m3_fix))
-        self.add_via(self.m2_stack,(pin1.x-contact_xshift, pin1.y-contact_yshift))
+        self.add_via(self.m2_stack,(pin1.x-contact_xshift, pin2.y-m1m2_m2m3_fix-self.via_shift("v1")))
+        self.add_via(self.m2_stack,(pin1.x-contact_xshift, pin1.y-contact_yshift-self.via_shift("v1")))
 
     def cxn_gate_input(self, pin1, pin2):
         """ Connecting the input(s) of gates to coresponding rail with metal1
@@ -396,7 +389,7 @@ class split_merge_control(design.design):
         
         self.add_path("metal1",[(pin1.x, pin1.y-self.m1_width), (pin1.x, pin2.y)],
                       width=self.m1_width)
-        self.add_via(self.m1_stack,(pin1.x-0.5*self.m2_width, pin2.y))
+        self.add_via(self.m1_stack,(pin1.x-0.5*self.m2_width, pin2.y-self.via_shift("v1")))
 
 
     def route_bank_decoder(self):
@@ -414,26 +407,26 @@ class split_merge_control(design.design):
 
                 if i%2:
                     dec_out_off= self.dec_inst.get_pin("Z").uc()
-                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").lr().x
+                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").rx()
 
                     self.add_wire(self.m1_rev_stack,
                                   [dec_out_off,
-                                  (dec_out_off.x,self.nand2_inst[i].ul().y+(i+2)*self.m_pitch("m1")),
-                                  (nand2_A_off.x,self.nand2_inst[i].ul().y+(i+2)*self.m_pitch("m1")),
+                                  (dec_out_off.x,self.nand2_inst[i].uy()+(i+2)*self.m_pitch("m1")),
+                                  (nand2_A_off.x,self.nand2_inst[i].uy()+(i+2)*self.m_pitch("m1")),
                                    nand2_A_off])
                 else:
                     dec_out_off= self.dec_inst.ur()
-                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").ll().x
+                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").lx()
                     self.cxn_gate_input(self.dec_inst.get_pin("A").uc(),self.bank_addr_off[i])
                     
-                    self.add_via(self.m1_stack,(self.dec_inst.ur().x+self.m_pitch("m1")-\
-                                                0.5*contact.m1m2.width, self.bank_addr_off[i].y))
+                    self.add_via(self.m1_stack,(self.dec_inst.rx()+self.m_pitch("m1")-\
+                                                0.5*contact.m1m2.width, self.bank_addr_off[i].y-self.via_shift("v1")))
 
                     self.add_wire(self.m1_rev_stack,
                                   [(dec_out_off.x+self.m_pitch("m1"), self.bank_addr_off[i].y),
                                   (dec_out_off.x+self.m_pitch("m1"), 
-                                   self.nand2_inst[i].ul().y+(i+2)*self.m_pitch("m1")),
-                                  (nand2_A_off.x, self.nand2_inst[i].ul().y+(i+2)*self.m_pitch("m1")),
+                                   self.nand2_inst[i].uy()+(i+2)*self.m_pitch("m1")),
+                                  (nand2_A_off.x, self.nand2_inst[i].uy()+(i+2)*self.m_pitch("m1")),
                                    nand2_A_off])
                 
                 nand2_B= self.nand2_inst[i].get_pin("B").uc()
@@ -442,18 +435,21 @@ class split_merge_control(design.design):
                 
                 self.cxn_gate_input(inv_out_off, self.bank_sel_off[i])
                 self.cxn_inv_output(nand2_B,self.S_offset)
-                self.add_via(self.m1_stack, (nand2_B.x-0.5*self.m1_width, nand2_B.y))
-                self.add_rect_center("metal2", nand2_B, contact.m1m2.width, 2*self.m_pitch("m1"))
+                self.add_via(self.m1_stack, (nand2_B.x-0.5*self.m1_width, nand2_B.y-self.via_shift("v1")))
+                self.add_rect_center(layer="metal2", 
+                                     offset=nand2_B, 
+                                     width=contact.m1m2.width, 
+                                     height=2*self.m_pitch("m1"))
 
         if self.num_banks == 4:
             #route inputs of 2:4 decoder to input addr rails
             for i in range(int(log(self.num_banks,2))):
                 if i%2:
-                    decoder_input_offset= vector(self.dec_inst.ll().x+self.nand2.get_pin("B").lc().y, 
-                                                 self.dec_inst.get_pin("in[{0}]".format(i)).ul().y)
+                    decoder_input_offset= vector(self.dec_inst.lx()+self.nand2.get_pin("B").lc().y, 
+                                                 self.dec_inst.get_pin("in[{0}]".format(i)).uy())
                 else:
-                    decoder_input_offset= vector(self.dec_inst.ll().x+self.nand2.get_pin("A").lc().y, 
-                                                 self.dec_inst.get_pin("in[{0}]".format(i)).ul().y)
+                    decoder_input_offset= vector(self.dec_inst.lx()+self.nand2.get_pin("A").lc().y, 
+                                                 self.dec_inst.get_pin("in[{0}]".format(i)).uy())
                 self.cxn_gate_input(decoder_input_offset, self.bank_addr_off[i])
 
             #route outputs of 2:4 decoder to nand2 gates
@@ -464,9 +460,9 @@ class split_merge_control(design.design):
                 nand2_out_off= self.nand2_inst[i].get_pin("Z").uc()
                 nand2_A_off= self.nand2_inst[i].get_pin("A").uc()
                 if i%2:
-                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").lr().x
+                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").rx()
                 else:
-                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").ll().x
+                    inv_in_xoff= self.dec_inv_inst[i].get_pin("A").lx()
                 
                 nand2_B= self.nand2_inst[i].get_pin("B").uc()
                 inv_in_yoff= self.dec_inv_inst[i].get_pin("A").uc().y
@@ -476,8 +472,11 @@ class split_merge_control(design.design):
                 self.add_path("metal1", [nand2_out_off,(inv_in_xoff, inv_in_yoff)])
                 self.cxn_gate_input(inv_out_off, self.bank_sel_off[i])
                 self.cxn_inv_output(nand2_B,self.S_offset)
-                self.add_via(self.m1_stack, (nand2_B.x-0.5*self.m1_width, nand2_B.y))
-                self.add_rect_center("metal2", nand2_B, contact.m1m2.width, 2*self.m_pitch("m1"))
+                self.add_via(self.m1_stack, (nand2_B.x-0.5*self.m1_width, nand2_B.y-self.via_shift("v1")))
+                self.add_rect_center(layer="metal2", 
+                                     offset=nand2_B, 
+                                     width=contact.m1m2.width, 
+                                     height=2*self.m_pitch("m1"))
 
                 self.add_path("metal1", [dec_out_off, 
                                         (dec_out_off.x, dec_out_off.y+(i+1)*self.m_pitch("m1")),
@@ -502,7 +501,6 @@ class split_merge_control(design.design):
         # Connecting Output of inv to Mrw pin
         self.cxn_inv_output(self.inv_inst.get_pin("Z").uc(), 
                             self.merge_ctrl_bus_off[self.merge_ctrl_bus_names.index("rw_merge")])
-        self.add_minarea_metal(self.inv_inst.get_pin("Z").uc())
 
     def route_ack_b_invs(self):
         """ Route ack0:3 input pins and ack_b0:3 output pins"""
@@ -513,7 +511,6 @@ class split_merge_control(design.design):
                                 self.bank_ctrl_bus_off[i,0]) 
             self.cxn_inv_output(self.ack_b_bank_inst[i].get_pin("Z").uc(), 
                                 self.bank_ctrl_bus_off[i,1])
-            self.add_minarea_metal(self.ack_b_bank_inst[i].get_pin("Z").uc())
     
     def route_rack_b_inv(self):
         """ Route pre_rack input pin and rack output pin"""
@@ -528,14 +525,12 @@ class split_merge_control(design.design):
                                 self.merge_ctrl_bus_off[self.merge_ctrl_bus_names.index(pre_pin[j])])
             self.cxn_inv_output(modules2[j].get_pin("Z").uc(), 
                                 self.ctrl_bus_off[self.ctrl_bus_names.index(pin[j])])
-            self.add_minarea_metal(modules2[j].get_pin("Z").uc())
 
         mod= self.ack_b_inst
         self.cxn_gate_input(mod.get_pin("A").uc(), 
                             self.ctrl_bus_off[self.ctrl_bus_names.index("ack")])
         self.cxn_inv_output(mod.get_pin("Z").uc(), 
                             self.merge_ctrl_bus_off[self.merge_ctrl_bus_names.index("ack_b")])
-        self.add_minarea_metal(mod.get_pin("Z").uc())
 
     def route_vdd_gnd(self):
         """ Route vdd and gnd pins of all the gates to vdd and gnd pin"""

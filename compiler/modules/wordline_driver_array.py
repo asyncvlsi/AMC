@@ -14,7 +14,6 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-
 import design
 import debug
 import contact
@@ -48,9 +47,7 @@ class wordline_driver_array(design.design):
         # Outputs from driver.
         for i in range(self.rows):
             self.add_pin("out[{0}]".format(i))
-        self.add_pin("en")
-        self.add_pin("vdd")
-        self.add_pin("gnd")
+        self.add_pin_list(["en", "vdd", "gnd"])
         
     def add_wordline_driver(self):
         """ Add wordline_driver cells"""
@@ -58,17 +55,28 @@ class wordline_driver_array(design.design):
         for i in range(self.rows/4):
             name = "wordline_driver{}".format(i)
             y_offset = i*self.wordline_driver.height
-            offset=[self.x_offset0, y_offset]
-            
+            if i%2:
+                mirror = "MX"
+                y_offset = y_offset + self.wordline_driver.height
+                pin_list=["in[{0}]".format(4*i+3), "in[{0}]".format(4*i+2),
+                          "in[{0}]".format(4*i+1), "in[{0}]".format(4*i),
+                          "out[{0}]".format(4*i+3), "out[{0}]".format(4*i+2),
+                          "out[{0}]".format(4*i+1),"out[{0}]".format(4*i),
+                          "en", "vdd", "gnd"]
+            else:
+                mirror = "R0"
+                pin_list=["in[{0}]".format(4*i), "in[{0}]".format(4*i+1),
+                          "in[{0}]".format(4*i+2), "in[{0}]".format(4*i+3),
+                          "out[{0}]".format(4*i), "out[{0}]".format(4*i+1),
+                          "out[{0}]".format(4*i+2),"out[{0}]".format(4*i+3),
+                          "en", "vdd", "gnd"]
+
             # add wordline_driver
             wordline_driver_inst=self.add_inst(name=name, 
                                                mod=self.wordline_driver, 
-                                               offset=offset)
-            self.connect_inst(["in[{0}]".format(4*i), "in[{0}]".format(4*i+1),
-                               "in[{0}]".format(4*i+2), "in[{0}]".format(4*i+3),
-                               "out[{0}]".format(4*i), "out[{0}]".format(4*i+1),
-                               "out[{0}]".format(4*i+2),"out[{0}]".format(4*i+3),
-                               "en", "vdd", "gnd"])
+                                               offset=[self.x_offset0, y_offset],
+                                               mirror=mirror)
+            self.connect_inst(pin_list)
 
             # vdd, gnd connection
             for vdd_pin in wordline_driver_inst.get_pins("vdd"):
@@ -110,23 +118,27 @@ class wordline_driver_array(design.design):
                 contact_height= contact.m2m3.height
 
             self.add_rect(layer=pin_layer,
-                          offset= vector(2*self.m1_space, en_pin.ll().y),
-                          width=en_pin.ll().x-2*self.m1_space,
+                          offset= vector(2*self.m1_space, en_pin.by()),
+                          width=en_pin.lx()-2*self.m1_space,
                           height=pin_width)
-            self.add_via(layer_stack,(2*self.m1_space+contact_height, en_pin.ll().y), rotate=90)
+            self.add_via(layer_stack,(2*self.m1_space+contact_height, en_pin.by()), rotate=90)
 
 
             # output each OUT on the right
             for j in range(4):
+                if i%2:
+                    text = "out[{0}]".format(4*i+(3-j))
+                else:
+                    text = "out[{0}]".format(4*i+j)
                 out_pin = wordline_driver_inst.get_pin("out{0}".format(j))
                 in_pin = wordline_driver_inst.get_pin("in{0}".format(j))
                 if (out_pin.layer=="metal1" or out_pin.layer=="m1pin"):
                     pin_width = self.m1_width
                 else:
                     pin_width = self.m3_width
-                self.add_layout_pin(text="out[{0}]".format(4*i+j), 
+                self.add_layout_pin(text=text, 
                                     layer=out_pin.layer,
-                                    offset= (self.width-pin_width, out_pin.ll().y),
+                                    offset= (self.width-pin_width, out_pin.by()),
                                     width=pin_width, 
                                     height=pin_width)
 

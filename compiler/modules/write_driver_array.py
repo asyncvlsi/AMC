@@ -2,8 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
-
+# All rights reserved.
 
 
 import design
@@ -52,35 +51,43 @@ class write_driver_array(design.design):
         bl_pin = self.write_driver.get_pin("bl")            
         br_pin = self.write_driver.get_pin("br")
         din_pin = self.write_driver.get_pin("din")
+        self.wd_inst={}
 
         for i in range(0, self.row_size, self.words_per_row):
             name = "write_driver{}".format(i)
             wd_position = vector(i * self.write_driver.width,0)
-            bl_offset = wd_position + bl_pin.ll()
-            br_offset = wd_position + br_pin.ll()
-            din_offset = wd_position + din_pin.ll()
             
-            self.add_inst(name=name, mod=self.write_driver, offset=wd_position)
+            if (self.words_per_row==1 and i%2):
+                mirror = "MY"
+                wd_position = vector(i * self.write_driver.width + self.write_driver.width,0)
+            else:
+                mirror = "R0"
+            
+            self.wd_inst[i] = self.add_inst(name=name, mod=self.write_driver, offset=wd_position, mirror = mirror)
             self.connect_inst(["data[{0}]".format(i/self.words_per_row), 
                                "bl[{0}]".format(i),"br[{0}]".format(i), "en", "vdd", "gnd"])
             
+            bl_offset = vector(self.wd_inst[i].get_pin("bl").lx() , self.height-self.m2_width)
+            br_offset = vector(self.wd_inst[i].get_pin("br").lx() , self.height-self.m2_width)
+            din_offset = self.wd_inst[i].get_pin("din").ll()
+
             self.add_layout_pin(text="data[{0}]".format(i/self.words_per_row),
                                 layer=din_pin.layer, 
                                 offset=din_offset, 
                                 width=din_pin.width(), 
-                                height=din_pin.height())
+                                height=self.m2_width)
                        
             self.add_layout_pin(text="bl[{0}]".format(i), 
                                 layer=bl_pin.layer, 
                                 offset=bl_offset, 
                                 width=bl_pin.width(), 
-                                height=bl_pin.height())
+                                height=self.m2_width)
             
             self.add_layout_pin(text="br[{0}]".format(i), 
                                 layer=br_pin.layer, 
                                 offset=br_offset, 
                                 width=br_pin.width(), 
-                                height=br_pin.height())
+                                height=self.m2_width)
 
     def connect_rails(self):
         """ Add vdd, gnd and en rails across entire array """
@@ -94,8 +101,8 @@ class write_driver_array(design.design):
         self.add_layout_pin(text="vdd", 
                             layer=vdd_pin.layer, 
                             offset=vdd_pin.ll().scale(0,1),
-                            width=vdd_pin.width(), 
-                            height=vdd_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
                        
         #gnd
         gnd_pin=self.write_driver.get_pin("gnd")
@@ -106,8 +113,8 @@ class write_driver_array(design.design):
         self.add_layout_pin(text="gnd", 
                             layer=gnd_pin.layer, 
                             offset=gnd_pin.ll().scale(0,1),
-                            width=gnd_pin.width(), 
-                            height=gnd_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
 
         #en
         wen_pin=self.write_driver.get_pin("en")
@@ -118,5 +125,5 @@ class write_driver_array(design.design):
         self.add_layout_pin(text="en", 
                             layer=wen_pin.layer, 
                             offset=wen_pin.ll().scale(0,1),
-                            width=wen_pin.width(), 
-                            height=wen_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)

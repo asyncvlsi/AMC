@@ -2,14 +2,15 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import design
 import debug
 import contact
 from vector import vector
-from column_mux import column_mux 
+from column_mux import column_mux
+from tech import drc, info 
 
 class column_mux_array(design.design):
     """ Dynamically generated column mux array """
@@ -58,13 +59,20 @@ class column_mux_array(design.design):
         """ For every column, add a column_mux cell"""
         
         # one set of metal1 routes for select signals and bl & br outputs plus space 
-        self.route_height = (self.words_per_row + 3) * self.m_pitch("m1")
+        self.route_height = (self.words_per_row + 3) * self.m_pitch("m2")
 
         self.mux_inst = []
         for col_num in range(self.columns):
             name = "mux{0}".format(col_num)
-            x_off = vector(col_num * self.mux.width, self.route_height)
-            self.mux_inst.append(self.add_inst(name=name, mod=self.mux, offset=x_off))
+            off = vector(col_num * self.mux.width, self.route_height)
+            if col_num %2:
+                mirror="MY"
+                off = vector((col_num+1) * self.mux.width, self.route_height)
+            else:
+                mirror="R0"
+            
+            
+            self.mux_inst.append(self.add_inst(name=name, mod=self.mux, offset=off, mirror=mirror))
             self.connect_inst(["bl[{}]".format(col_num), "br[{}]".format(col_num), 
                                "bl_out[{}]".format(int(col_num/self.words_per_row)),
                                "br_out[{}]".format(int(col_num/self.words_per_row)), 
@@ -79,7 +87,7 @@ class column_mux_array(design.design):
         """ Create select input rails below the column_mux transistors  """
         
         for j in range(self.words_per_row):
-            offset = vector(0, self.route_height - (j+1)*self.m_pitch("m1"))
+            offset = vector(0, self.route_height - (j+1)*self.m_pitch("m2"))
             self.add_rect(layer="metal1", 
                           offset=offset, 
                           width=self.width, 
@@ -99,16 +107,32 @@ class column_mux_array(design.design):
             sel_height = self.get_pin("sel[{}]".format(sel_index)).by()
             offset = (gate_offset.x, self.get_pin("sel[{}]".format(sel_index)).cy())
             
-            self.add_path("poly", [offset, gate_offset])
-            self.add_contact_center(self.poly_stack, offset, rotate=90)
+            if (self.mux_inst[0].get_pin("br").lx() - self.mux_inst[0].get_pin("bl").rx()) < 3*self.m2_width:
+                self.add_path("poly", [offset, gate_offset])
+                self.add_contact_center(self.poly_stack, offset, rotate=90)
+            
+            else:
+                off=self.mux_inst[col].get_pin("sel").cc()
+                self.add_contact_center(self.poly_stack,off , rotate=90)
+                self.add_contact_center(self.m1_stack, off, rotate=90)
+                
+                self.add_path("metal2", [offset, gate_offset])
+                self.add_contact_center(self.m1_stack, offset, rotate=90)
+                
+                width = max(contact.poly.second_layer_height, contact.m1m2.first_layer_height)
+                self.add_rect_center(layer="metal1", 
+                                     offset = off, 
+                                     width=width, 
+                                     height=1.5 * (self.m1_minarea / width))
             
             # add implant for poly-enclosure drc violation
-            implant_offset = (self.mux_inst[0].ll().x, self.mux_inst[0].ll().y-self.route_height)
+            implant_offset = (self.mux_inst[0].lx(), self.mux_inst[0].by()-self.route_height)
             implant_width = self.width
-            self.add_rect(layer= "pimplant", 
-                          offset= implant_offset, 
-                          width = implant_width,
-                          height= self.route_height)
+            if (info["has_pimplant"] and drc["implant_enclosure_poly"]>0):
+                self.add_rect(layer= "pimplant", 
+                              offset= implant_offset, 
+                              width = implant_width,
+                              height= self.route_height)
 
     def route_bitlines(self):
         """  Connect the output bit-lines to form the appropriate width mux """
@@ -117,15 +141,18 @@ class column_mux_array(design.design):
             bl_offset = self.mux_inst[j].get_pin("bl_out").ll()
             br_offset = self.mux_inst[j].get_pin("br_out").ll()
 
-            bl_out_offset = bl_offset - vector(0,(self.words_per_row+1)*self.m_pitch("m1"))
-            br_out_offset = br_offset - vector(0,(self.words_per_row+2)*self.m_pitch("m1"))
+            bl_out_offset = bl_offset - vector(0,(self.words_per_row+1)*self.m_pitch("m2")+self.m1_space)
+            br_out_offset = br_offset - vector(0,(self.words_per_row+2)*self.m_pitch("m2")+self.m1_space)
 
             if (j % self.words_per_row) == 0:
-                width = self.mux.width * (self.words_per_row - 1)
+                width = self.mux_inst[self.words_per_row-1].get_pin("bl_out").rx() -\
+                        self.mux_inst[0].get_pin("bl_out").lx()
                 self.add_rect(layer="metal1",
                               offset=bl_out_offset,
                               width=width,
                               height=contact.m1m2.width)
+                width = self.mux_inst[self.words_per_row-1].get_pin("br_out").rx() -\
+                        self.mux_inst[0].get_pin("br_out").lx()
                 self.add_rect(layer="metal1",
                               offset=br_out_offset,
                               width=width,
@@ -162,8 +189,8 @@ class column_mux_array(design.design):
                               width=self.m2_width, 
                               height=self.route_height-br_out_offset.y)
             
-            self.add_via(self.m1_stack, bl_out_offset, rotate=90)
-            self.add_via(self.m1_stack, br_out_offset, rotate=90)
+            self.add_via(self.m1_stack, bl_out_offset+vector(contact.m1m2.height, 0), rotate=90)
+            self.add_via(self.m1_stack, br_out_offset+vector(contact.m1m2.height, 0), rotate=90)
 
     def add_layout_pins(self):
         """ Add the pins after height is determined """

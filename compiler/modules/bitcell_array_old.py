@@ -42,22 +42,17 @@ class bitcell_array(design.design):
         self.add_pins()
 
         if info["foundry_cell"]:
-            #from endcells_frame import endcells_frame
+            from endcells_frame import endcells_frame
             
-            #self.endcell = endcells_frame(self.column_size, self.row_size)
-            #self.add_mod(self.endcell)
+            self.endcell = endcells_frame(self.column_size, self.row_size)
+            self.add_mod(self.endcell)
             
-            #self.xleft_shift = self.endcell.left_width
-            #self.ybot_shift = self.endcell.bot_width
-            #self.xright_shift = self.endcell.right_width
-            #self.ytop_shift = self.endcell.top_width
-            #self.width = self.column_size*self.cell.width + self.xright_shift + self.xleft_shift
-            #self.add_endcells_frame()
-            self.xleft_shift = 0
-            self.ybot_shift = 0
-            self.xright_shift = 0
-            self.ytop_shift = 0
-            self.width = self.column_size*self.cell.width
+            self.xleft_shift = self.endcell.left_width
+            self.ybot_shift = self.endcell.bot_width
+            self.xright_shift = self.endcell.right_width
+            self.ytop_shift = self.endcell.top_width
+            self.width = self.column_size*self.cell.width + self.xright_shift + self.xleft_shift
+            self.add_endcells_frame()
             
         else:
             
@@ -79,7 +74,8 @@ class bitcell_array(design.design):
         lowest = self.find_lowest_coords()
         self.height = highest.y-lowest.y
         self.width = highest.x-lowest.x
-        self.translate_all(vector(0, lowest.y))
+        #self.translate_all(vector(0, lowest.y))
+        self.offset_all_coordinates()
         
 
     def add_pins(self):
@@ -92,8 +88,8 @@ class bitcell_array(design.design):
             self.add_pin("wl[{0}]".format(row))
         self.add_pin_list(["vdd", "gnd"])
         
-        #if info["foundry_cell"]:
-            #self.add_pin("sub")
+        if info["foundry_cell"]:
+            self.add_pin("sub")
 
     def create_layout(self):
         """ Add bitcell in a 2D array, Flip the cells in odd rows to share power rails """
@@ -112,26 +108,26 @@ class bitcell_array(design.design):
             for row in range(self.row_size):
                 name = "bit_r{0}_c{1}".format(row, col)
                 if row % 2:
-                    tempy = yoffset + self.cell.height
+                    tempy = yoffset 
                 else:
-                    tempy = yoffset
+                    tempy = yoffset + self.cell.height
                 
                 if row % 2 and col% 2:
-                    mirror = "MX"
+                    mirror = "R0"
                     rotate=0
                 if row % 2 and not col% 2:
-                    mirror = "R0"
-                    rotate=180
-                if not row % 2 and col% 2:
-                    mirror = "R0"
-                    rotate=0
-                if not row % 2 and not col% 2:
                     mirror = "MY"
                     rotate=0
+                if not row % 2 and col% 2:
+                    mirror = "MX"
+                    rotate=0
+                if not row % 2 and not col% 2:
+                    mirror = "R0"
+                    rotate=180
                 
                 pin_list = ["bl[{0}]".format(col),"br[{0}]".format(col), "wl[{0}]".format(row), "vdd", "gnd"]
                 if info["foundry_cell"]:
-                    pin_list.extend(["gnd"])
+                    pin_list.extend(["gnd", "sub"])
                 self.cell_inst[row,col]=self.add_inst(name=name, 
                                                       mod=self.cell, 
                                                       offset=[tempx, tempy], 
@@ -392,10 +388,7 @@ class bitcell_array(design.design):
         for col in range(self.column_size):
             temp.extend(["bl[{0}]".format(col)])
             temp.extend(["br[{0}]".format(col)])
-            temp.extend(["bl[{0}]".format(col)])
-            temp.extend(["gnd"])
         for row in range(self.row_size):
-            temp.extend(["wl[{0}]".format(row)])
             temp.extend(["wl[{0}]".format(row)])
         temp.extend(["vdd", "gnd", "sub"])
         self.connect_inst(temp)

@@ -2,8 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
-
+# All rights reserved.
 
 
 import design
@@ -55,43 +54,52 @@ class sense_amp_array(design.design):
         br_pin = self.amp.get_pin("br")
         dout_pin = self.amp.get_pin("dout")
         dout_bar_pin = self.amp.get_pin("dout_bar")
+        self.sa_inst = {}
         
         for i in range(0,self.row_size,self.words_per_row):
 
             name = "sense_amp{0}".format(i)
             amp_position = vector(self.amp.width * i, 0)
             
-            bl_offset = amp_position + bl_pin.ll().scale(1,0)
-            br_offset = amp_position + br_pin.ll().scale(1,0)
-            dout_offset = amp_position + dout_pin.ll()
-            dout_bar_offset = amp_position + dout_bar_pin.ll()
+            if (self.words_per_row==1 and i%2):
+                mirror = "MY"
+                amp_position = vector(i * self.amp.width + self.amp.width,0)
+            else:
+                mirror = "R0"
             
-            self.add_inst(name=name, mod=self.amp, offset=amp_position)
+
+            self.sa_inst[i] = self.add_inst(name=name, mod=self.amp, offset=amp_position, mirror=mirror)
             self.connect_inst(["bl[{0}]".format(i),"br[{0}]".format(i), 
                                "data[{0}]".format(i/self.words_per_row), 
                                "data_bar[{0}]".format(i/self.words_per_row), 
                                "en", "vdd", "gnd"])
 
+            bl_offset = vector(self.sa_inst[i].get_pin("bl").lx() , self.height-self.m2_width)
+            br_offset = vector(self.sa_inst[i].get_pin("br").lx() , self.height-self.m2_width)
+            dout_offset = self.sa_inst[i].get_pin("dout").ll()
+            dout_bar_offset = self.sa_inst[i].get_pin("dout_bar").ll()
+
+
             self.add_layout_pin(text="bl[{0}]".format(i), 
                                 layer=bl_pin.layer, 
                                 offset=bl_offset, 
                                 width=bl_pin.width(), 
-                                height=bl_pin.height())
+                                height=self.m2_width)
             self.add_layout_pin(text="br[{0}]".format(i), 
                                 layer=br_pin.layer, 
                                 offset=br_offset, 
                                 width=br_pin.width(), 
-                                height=br_pin.height())
+                                height=self.m2_width)
             self.add_layout_pin(text="data[{0}]".format(i/self.words_per_row), 
                                 layer=dout_pin.layer, 
                                 offset=dout_offset, 
                                 width=dout_pin.width(), 
-                                height=dout_pin.height())
+                                height=self.m2_width)
             self.add_layout_pin(text="data_bar[{0}]".format(i/self.words_per_row), 
                                 layer=dout_bar_pin.layer, 
                                 offset=dout_bar_offset, 
                                 width=dout_bar_pin.width(), 
-                                height=dout_bar_pin.height())
+                                height=self.m2_width)
 
     def connect_rails(self):
         """ Add vdd, gnd and en rails across entire array """
@@ -105,8 +113,8 @@ class sense_amp_array(design.design):
         self.add_layout_pin(text="vdd", 
                             layer=vdd_pin.layer, 
                             offset=vdd_pin.ll().scale(0,1), 
-                            width=vdd_pin.width(), 
-                            height=vdd_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
 
         #gnd
         gnd_pin = self.amp.get_pin("gnd")
@@ -117,8 +125,8 @@ class sense_amp_array(design.design):
         self.add_layout_pin(text="gnd", 
                             layer=gnd_pin.layer, 
                             offset=gnd_pin.ll().scale(0,1), 
-                            width=gnd_pin.width(), 
-                            height=gnd_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
 
         #en
         sen_pin = self.amp.get_pin("en")
@@ -129,5 +137,5 @@ class sense_amp_array(design.design):
         self.add_layout_pin(text="en", 
                             layer=sen_pin.layer, 
                             offset=sen_pin.ll().scale(0,1), 
-                            width=sen_pin.width(), 
-                            height=sen_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)

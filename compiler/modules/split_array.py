@@ -14,7 +14,6 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-
 import design
 import debug
 from vector import vector
@@ -63,29 +62,36 @@ class split_array(design.design):
             
         D_pin = self.split.get_pin("D")
         Q_pin = self.split.get_pin("Q")
+        self.split_inst= {}
         
         for i in range(0,self.row_size,self.words_per_row):
             name = "split{0}".format(i)
             split_position = vector(self.split.width * i, 0)
+
+            if (self.words_per_row==1 and i%2):
+                mirror = "MY"
+                split_position = vector(i * self.split.width + self.split.width,0)
+            else:
+                mirror = "R0"
             
-            D_offset = split_position + D_pin.ll()
-            Q_offset = split_position + Q_pin.ll()
-            
-            self.add_inst(name=name, mod=self.split, offset=split_position)
+            self.split_inst[i] = self.add_inst(name=name, mod=self.split, offset=split_position, mirror=mirror)
             self.connect_inst(["D[{0}]".format(i/self.words_per_row), 
                                "Q[{0}]".format(i/self.words_per_row), 
                                "en1_S", "en2_S", "reset", "S", "vdd", "gnd"])
+            
+            D_offset = self.split_inst[i].get_pin("D").ll()
+            Q_offset = vector(self.split_inst[i].get_pin("Q").lx() , self.height-self.m2_width)
 
             self.add_layout_pin(text="D[{0}]".format(i/self.words_per_row), 
                                 layer=D_pin.layer, 
                                 offset=D_offset, 
                                 width=D_pin.width(), 
-                                height=D_pin.height())
+                                height=self.m2_width)
             self.add_layout_pin(text="Q[{0}]".format(i/self.words_per_row), 
                                 layer=Q_pin.layer, 
                                 offset=Q_offset, 
                                 width=Q_pin.width(), 
-                                height=Q_pin.height())
+                                height=self.m2_width)
 
     def connect_rails(self):
         """ Add vdd, gnd, en1_s, en2_s, reset and select rails across entire array"""
@@ -99,7 +105,7 @@ class split_array(design.design):
         self.add_layout_pin(text="vdd", 
                             layer=vdd_pin.layer, 
                             offset=vdd_pin.ll().scale(0,1), 
-                            width=vdd_pin.width(), 
+                            width=vdd_pin.height(), 
                             height=vdd_pin.height())
 
         #gnd 
@@ -111,7 +117,7 @@ class split_array(design.design):
         self.add_layout_pin(text="gnd", 
                             layer=gnd_pin.layer, 
                             offset=gnd_pin.ll().scale(0,1), 
-                            width=gnd_pin.width(), 
+                            width=gnd_pin.height(), 
                             height=gnd_pin.height())
 
         #en1_S
@@ -123,8 +129,8 @@ class split_array(design.design):
         self.add_layout_pin(text="en1_S", 
                             layer=en1_pin.layer, 
                             offset=en1_pin.ll().scale(0,1), 
-                            width=en1_pin.width(), 
-                            height=en1_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
 
         #en2_S
         en2_pin = self.split.get_pin("en2_S")
@@ -135,8 +141,8 @@ class split_array(design.design):
         self.add_layout_pin(text="en2_S", 
                             layer=en2_pin.layer, 
                             offset=en2_pin.ll().scale(0,1), 
-                            width=en2_pin.width(), 
-                            height=en2_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
         
         # reset
         reset_pin = self.split.get_pin("reset")
@@ -147,8 +153,8 @@ class split_array(design.design):
         self.add_layout_pin(text="reset", 
                             layer=reset_pin.layer, 
                             offset=reset_pin.ll().scale(0,1), 
-                            width=reset_pin.width(), 
-                            height=reset_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
 
         # S
         sel_pin = self.split.get_pin("S")
@@ -159,6 +165,6 @@ class split_array(design.design):
         self.add_layout_pin(text="S", 
                             layer=sel_pin.layer, 
                             offset=sel_pin.ll().scale(0,1), 
-                            width=sel_pin.width(), 
-                            height=sel_pin.height())
+                            width=self.m1_width, 
+                            height=self.m1_width)
 

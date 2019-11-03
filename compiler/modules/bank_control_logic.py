@@ -18,7 +18,7 @@ import design
 import debug
 import contact
 import math
-from tech import drc, parameter, spice
+from tech import drc, parameter, spice, info
 from vector import vector
 from driver import driver
 from pinv import pinv
@@ -49,19 +49,19 @@ class bank_control_logic(design.design):
         self.create_modules()
         self.setup_layout_offsets()
         self.add_modules()
-        self.height= self.rbl.ul().y - self.min_off_y + self.m_pitch("m1")
+        self.height= self.rbl.uy() - self.min_off_y + self.m_pitch("m1")
         
         #Pin_width coresponds to the position of the last instance with its connections
         if self.num_subanks > 1:
             # data_ready_inst + 4*m1_pitch for connections
-            self.pin_width = self.dr_inst.lr().x + 4*self.m_pitch("m1")
+            self.pin_width = self.dr_inst.rx() + 4*self.m_pitch("m1")
         else:
             if self.two_level_bank:
                 # rreq_merge_inv_inst + 3*m1_pitch for connections
-                self.pin_width = self.rreq_mrg_inv1_inst.lr().x + 3*self.m_pitch("m1")
+                self.pin_width = self.rreq_mrg_inv1_inst.rx() + 3*self.m_pitch("m1")
             else:
                 # decoder_enable_inst + 1*m1_pitch for connections
-                self.pin_width = self.dec_en_inst.lr().x + self.m_pitch("m1")
+                self.pin_width = self.dec_en_inst.rx() + self.m_pitch("m1")
 
         #replica_bitline_inst + + 5*m1_pitch for connections
         self.pin_width = max(self.replica_bitline.height+5*self.m_pitch("m1"), self.pin_width) 
@@ -97,7 +97,6 @@ class bank_control_logic(design.design):
         
         self.inv2 = pinv(size=2)
         self.add_mod(self.inv2)
-
         
         self.inv5 = pinv(size=5)
         self.add_mod(self.inv5)
@@ -141,10 +140,11 @@ class bank_control_logic(design.design):
                                              vdd_pins=["S0"], gnd_pins=gnd_pins)
             self.add_mod(self.dr_gate)
 
-        delay_stages = 1
+        #To match the delay of decoder + wordline_driver
+        delay_stages = 12
         delay_fanout = 1 
-        # replica bitline load is 20% of main bitline load
-        bitcell_loads = int(math.ceil(self.num_rows / 5.0))
+        # replica bitline load is 25% of main bitline load
+        bitcell_loads = int(math.ceil(self.num_rows / 4.0))
         self.replica_bitline = replica_bitline(delay_stages, delay_fanout, bitcell_loads)
         self.add_mod(self.replica_bitline)
 
@@ -152,7 +152,11 @@ class bank_control_logic(design.design):
         """ Setup layout offsets, spaces, etc """
 
         #This is a gap between neighbor cell to avoid well/implant DRC violation
-        self.gap= max(self.implant_space,self.well_space,self.m_pitch("m1"))
+        self.gap= max(self.implant_space, self.well_space, self.m_pitch("m1"))
+
+        #This is a contact/via shift to avoid DRC violation
+        self.co_xshift= 0.5*abs(contact.poly.second_layer_width-contact.poly.first_layer_width)
+        self.via_co_shift= 0.5*abs(contact.poly.width-contact.m1m2.width)
         
         # Y-offset of input/output pins above the gates
         v_shift = self.inv5.width+2*self.inv2.width+self.ack_gate.width+self.well_space
@@ -183,7 +187,7 @@ class bank_control_logic(design.design):
         self.reset_off_y = self.rack_off_y
         self.go_off_y = self.reset_off_y-self.m_pitch("m2")
         self.dec_en_off_y = self.wack_off_y
-        self.min_off_y = self.go_off_y-self.num_subanks*self.m_pitch("m2")
+        self.min_off_y = self.go_off_y-(self.num_subanks+1)*self.m_pitch("m2")
 
     def add_modules(self):
         """ Place the gates """
@@ -200,7 +204,7 @@ class bank_control_logic(design.design):
         if self.two_level_bank:
             self.add_rreq_merge_enable()
         else:
-            self.rreq_mrg_inv1_inst_lr_x=self.wack_inst.lr().x+2*self.inv.height+2*self.m_pitch("m1")
+            self.rreq_mrg_inv1_inst_lr_x=self.wack_inst.rx()+2*self.inv.height+2*self.m_pitch("m1")
         if self.num_subanks > 1: 
             self.add_WC_OR_gate()
             self.add_DR_OR_gate()
@@ -230,29 +234,22 @@ class bank_control_logic(design.design):
         self.add_rbl_routing()
         self.route_vdd_gnd()
 
-    def add_m1H_minarea(self, pin):
-        """ Adds horizontal metal1 rail in active contact position to avoid DRC min_area"""
-        
-        self.add_rect_center(layer="metal1",
-                             offset=pin,
-                             width=self.m1_minarea/contact.m1m2.height,
-                             height=contact.m1m2.height)
 
-    def add_m1V_minarea(self, pin):
-        """ Adds vertical metal1 rail in active contact position to avoid DRC min_area"""
+    def add_m1_minarea(self, pin, width=contact.m1m2.first_layer_width):
+        """ Adds metal1 rail in active contact position to avoid DRC min_area"""
 
         self.add_rect_center(layer="metal1",
                              offset=pin,
-                             width=contact.m1m2.width,
-                             height=self.m1_minarea/contact.m1m2.width)
+                             width=width,
+                             height=self.m1_minarea/width)
 
-    def add_m1P_minarea(self, pin, y_off, gap):
+    def add_m1P_minarea(self, pin, y_off, gap, width= contact.m1m2.first_layer_width):
         """ Adds vertical metal1 rail in poly contact position to avoid DRC min_area"""
 
         self.add_rect_center(layer="metal1",
                              offset=(pin.x+0.5*contact.m1m2.width, y_off-gap),
-                             width=contact.m1m2.width,
-                             height=self.m1_minarea/contact.m1m2.width)
+                             width=width,
+                             height=self.m1_minarea/width)
 
     def add_Zpath(self, pin1, pin2, gap):
         """ Adds a Z connection in m1 between pins (pin1.y> pin2.y) with mid position at pin1.y-gap"""
@@ -313,7 +310,7 @@ class bank_control_logic(design.design):
         """Adds pull_up_pull_down network for u-gate """
 
         #add 2*m1_pitch for 2 connections of u_gate
-        u_off= (self.pchg_inv_inst.lr().x + self.u_gate.height + 2*self.m_pitch("m1"), 0)
+        u_off= (self.pchg_inv_inst.rx() + self.u_gate.height + 2*self.m_pitch("m1"), 0)
         self.u_inst=self.add_inst(name="u_gate", 
                                   mod=self.u_gate, 
                                   offset=u_off, 
@@ -340,21 +337,22 @@ class bank_control_logic(design.design):
         self.add_rect(layer="pimplant",
                       offset=self.u_inst.ul(),
                       width=self.u_inst.height,
-                      height=contact.poly.height+self.implant_enclose_poly)
+                      height=contact.poly.height+2*contact.m1m2.height+self.implant_enclose_poly)
 
         #Adding min_area metal1 for active contacts with no connections and in poly_contact positions
-        self.add_m1V_minarea(self.u_inst.get_pin("Dp0").cc())
-        self.add_m1V_minarea(self.u_inst.get_pin("Sp0").cc())
-        self.add_m1H_minarea(self.u_inst.get_pin("Dn1").cc())
-        self.add_m1H_minarea(self.u_inst.get_pin("Sn0").cc())
-        self.add_m1P_minarea(self.u_inst.get_pin("Gp0").lc(), self.u_inst.ll().y,0)
-        self.add_m1P_minarea(self.u_inst.get_pin("Gn0").lr(), self.u_inst.ul().y, 0) 
+        self.add_m1_minarea(self.u_inst.get_pin("Dp0").cc())
+        self.add_m1_minarea(self.u_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.u_inst.get_pin("Dn1").cc()+vector(0, self.m1_width))
+        self.add_m1_minarea(self.u_inst.get_pin("Sn0").uc())
+        self.add_m1P_minarea(vector(self.u_inst.get_pin("Gp0").lc().x+self.co_xshift,self.u_inst.get_pin("Gp0").lc().y), 
+                             self.u_inst.by(),0)
+        self.add_m1P_minarea(self.u_inst.get_pin("Gn0").lr(), self.u_inst.uy()+self.m_pitch("m1"), 0) 
 
     def add_wen_gate(self):
         """ Adds the pull_up_pull_down network for wen-gate """
         
         #add 3*m1_pitch for 3 connections of wen_gate
-        wen_off= (self.u_inst.lr().x+3*self.m_pitch("m1"),0)
+        wen_off= (self.u_inst.rx()+3*self.m_pitch("m1"),0)
         self.wen_inst=self.add_inst(name="wen_gate", 
                                     mod=self.wen_gate, 
                                     offset=wen_off, 
@@ -366,7 +364,7 @@ class bank_control_logic(design.design):
         self.connect_inst(temp)
 
         #adding 0.5*con.m1m2.width to share vdd rail
-        wen_inv_off= (wen_off[0] + 0.5*contact.m1m2.width, self.wen_gate.width)        
+        wen_inv_off= (wen_off[0] + 0.5*contact.m1m2.width, self.wen_gate.width+self.gap)        
         self.wen_inv_inst=self.add_inst(name="delay_wen_inv", 
                                         mod=self.inv5, 
                                         offset=wen_inv_off, 
@@ -389,7 +387,8 @@ class bank_control_logic(design.design):
         self.add_Zpath(self.wen_inst.get_pin("Dn0"),self.wen_inst.get_pin("Dp1"),self.m_pitch("m1")) 
 
         #Connecting the output node to inv input
-        self.add_path("metal1",[self.wen_inst.get_pin("Dn0").uc(),self.wen_inv_inst.get_pin("A").lc()])
+        self.add_Zpath(self.wen_inv_inst.get_pin("A"),self.wen_inst.get_pin("Dn0"),self.m_pitch("m1"))
+        #self.add_path("metal1",[self.wen_inst.get_pin("Dn0").uc(),self.wen_inv_inst.get_pin("A").lc()])
         
         #Adding a Z connection for active contact connections
         self.add_Zwire(self.wen_inst.get_pin("Sn0"), self.wen_inst.get_pin("Dn2"),self.m_pitch("m1"))
@@ -399,17 +398,18 @@ class bank_control_logic(design.design):
                                  self.wen_inv_inst.get_pin("vdd").lc()], width=contact.m1m2.width)
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1V_minarea(self.wen_inst.get_pin("Dp0").cc())
-        self.add_m1V_minarea(self.wen_inst.get_pin("Sp0").cc())
-        self.add_m1H_minarea(self.wen_inst.get_pin("Dn1").cc())
-        self.add_m1H_minarea(self.wen_inst.get_pin("Dn3").cc())
-        self.add_m1P_minarea(self.wen_inst.get_pin("Gn3").lc(), self.wen_inst.ll().y,0)
+        self.add_m1_minarea(self.wen_inst.get_pin("Dp0").cc())
+        self.add_m1_minarea(self.wen_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.wen_inst.get_pin("Dn1").cc()+vector(0, self.m1_width))
+        self.add_m1_minarea(self.wen_inst.get_pin("Dn3").cc()+vector(0, self.m1_width))
+        self.add_m1P_minarea(vector(self.wen_inst.get_pin("Gn3").lc().x+self.co_xshift+self.poly_to_active, self.wen_inst.get_pin("Gn3").lc().y), 
+                             self.wen_inst.by(),0)
 
     def add_sen_gate(self):
         """ Adds the pull_up_pull_down network for sen-gate """
 
         #-con.m1m2.width to share vdd between sen and wen gates
-        sen_off= (self.wen_inst.lr().x+self.sen_gate.height-contact.m1m2.width,0)
+        sen_off= (self.wen_inst.rx()+self.sen_gate.height-contact.m1m2.width,0)
         self.sen_inst=self.add_inst(name="sen_gate", 
                                     mod=self.sen_gate, 
                                     offset=sen_off, 
@@ -421,7 +421,7 @@ class bank_control_logic(design.design):
         self.connect_inst(temp)
         
         #-0.5*con.m1m2.width to share vdd
-        sen_inv_off= (sen_off[0]-0.5*contact.m1m2.width, self.sen_gate.width)        
+        sen_inv_off= (sen_off[0]-0.5*contact.m1m2.width, self.sen_gate.width+3*self.gap)        
         self.sen_inv_inst=self.add_inst(name="delay_sen_inv", 
                                         mod=self.inv5, 
                                         offset=sen_inv_off, 
@@ -443,26 +443,35 @@ class bank_control_logic(design.design):
         self.add_Zpath(self.sen_inst.get_pin("Dp1"),self.sen_inst.get_pin("Dn0"),-self.m_pitch("m1"))
         
         #Connecting the output node to inv input
-        self.add_path("metal1",[self.sen_inst.get_pin("Dn0").uc(),self.sen_inv_inst.get_pin("A").lc()])
+        self.add_Zpath(self.sen_inv_inst.get_pin("A"),self.sen_inst.get_pin("Dn0"),self.m_pitch("m1"))
+        #self.add_path("metal1",[self.sen_inst.get_pin("Dn0").uc(),self.sen_inv_inst.get_pin("A").lc()])
 
         #Adding a Z connection for active contact connections
-        self.add_Zwire(self.sen_inst.get_pin("Sn0"),self.sen_inst.get_pin("Dn1"),self.m_pitch("m1"))
+        pos1=self.sen_inst.get_pin("Sn0").uc()
+        pos2=self.sen_inst.get_pin("Dn1").uc()
+        gap=3*self.m_pitch("m1")
+        self.add_path("metal1", [pos1, (pos1.x, pos1.y+gap)])
+        self.add_path("metal1", [pos2, (pos2.x, pos2.y+gap)])
+        self.add_path("metal2", [(pos1.x, pos1.y+gap), (pos2.x, pos2.y+gap)], width=contact.m1m2.height)
+        self.add_via_center(self.m1_stack, (pos1.x, pos1.y+gap))
+        self.add_via_center(self.m1_stack, (pos2.x, pos2.y+gap))
         
         #Connecting the vdd of inv to sen_inst, gnd is connected by abutment
         self.add_path("metal1", [self.sen_inst.get_pin("vdd").uc(),
                                  self.sen_inv_inst.get_pin("vdd").lc()], width=contact.m1m2.width)  
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1H_minarea(self.sen_inst.get_pin("Dn2").cc())
-        self.add_m1H_minarea(self.sen_inst.get_pin("Dp0").cc())
-        self.add_m1V_minarea(self.sen_inst.get_pin("Sp0").cc())
-        self.add_m1P_minarea(self.sen_inst.get_pin("Gn2").ll(),self.sen_inst.ll().y,contact.poly.height)
+        self.add_m1_minarea(self.sen_inst.get_pin("Dn2").cc()+vector(0, self.m1_width))
+        self.add_m1_minarea(self.sen_inst.get_pin("Dp0").cc()-vector(0, self.m1_width))
+        self.add_m1_minarea(self.sen_inst.get_pin("Sp0").cc())
+        self.add_m1P_minarea(vector(self.sen_inst.get_pin("Gn2").lx()-self.poly_to_active,self.sen_inst.get_pin("Gn2").by()),
+                             self.sen_inst.by(),contact.m1m2.height)
         
     def add_ack_gate(self):
         """" Adds the pull_up_pull_down network for ack-gate """
 
         #add 6*m1_pitch for 6 connections of ack_gate
-        ack_off= (self.sen_inst.lr().x+6*self.m_pitch("m1"),0)
+        ack_off= (self.sen_inst.rx()+6*self.m_pitch("m1"),0)
         self.ack_inst=self.add_inst(name="ack_gate", 
                                     mod=self.ack_gate, 
                                     offset=ack_off, 
@@ -539,23 +548,24 @@ class bank_control_logic(design.design):
                       height=self.gap)
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1V_minarea(self.ack_inst.get_pin("Sp0").cc())
-        self.add_m1V_minarea(self.ack_inst.get_pin("Dp0").cc())
-        self.add_m1V_minarea(self.ack_inst.get_pin("Dp1").cc())
-        self.add_m1V_minarea(self.ack_inst.get_pin("Dp3").cc())
-        self.add_m1H_minarea(self.ack_inst.get_pin("Dn1").cc())
-        self.add_m1V_minarea((self.ack_inst.get_pin("Dn2").uc() + vector(0, self.m1_width)))
-        self.add_m1P_minarea(self.ack_inst.get_pin("Gn0").lc(), self.ack_inst.ll().y,self.m1_width)
-        self.add_m1P_minarea(self.ack_inst.get_pin("Gn3").lc(),self.ack_inst.ll().y,0)
-        self.add_m1P_minarea(self.ack_inst.get_pin("Gn1").lc(),self.ack_inst.ul().y,-self.m1_width)
-        self.add_m1P_minarea(self.ack_inst.get_pin("Gn3").lc(),self.ack_inst.ul().y,-self.m1_width)
-        self.add_m1H_minarea(self.ack_inv_inst.get_pin("Z").uc())
+        self.add_m1_minarea(self.ack_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.ack_inst.get_pin("Dp0").cc())
+        self.add_m1_minarea(self.ack_inst.get_pin("Dp1").cc())
+        self.add_m1_minarea(self.ack_inst.get_pin("Dp3").cc())
+        self.add_m1_minarea(self.ack_inst.get_pin("Dn1").cc()+vector(0, self.m1_width))
+        self.add_m1_minarea((self.ack_inst.get_pin("Dn2").uc() + vector(0, self.m1_width)))
+        self.add_m1P_minarea(vector(self.ack_inst.get_pin("Gn0").rx()-contact.poly.width, self.ack_inst.get_pin("Gn0").by()), 
+                             self.ack_inst.by(),-self.m_pitch("m1"), self.m1_width)
+        self.add_m1P_minarea(vector(self.ack_inst.get_pin("Gn3").rx()+self.co_xshift-contact.poly.width, self.ack_inst.get_pin("Gn3").lc().y),
+                             self.ack_inst.by(),2*self.m_pitch("m1"))
+        self.add_m1P_minarea(self.ack_inst.get_pin("Gn1").lc(),self.ack_inst.uy(),-self.m1_width)
+        self.add_m1P_minarea(self.ack_inst.get_pin("Gn3").lc(),self.ack_inst.uy(),-self.m1_width)
         
     def add_rack_gate(self):
         """" Adds the pull_up_pull_down network for rack-gate """
 
         #add 4*m1_pitch for 4 connections of rack_gate
-        rack_off= (self.ack_inst.lr().x+self.rack_gate.height+4*self.m_pitch("m1"),0)
+        rack_off= (self.ack_inst.rx()+self.rack_gate.height+4*self.m_pitch("m1"),0)
         self.rack_inst=self.add_inst(name="rack_gate", 
                                      mod=self.rack_gate, 
                                      offset=rack_off, 
@@ -572,7 +582,7 @@ class bank_control_logic(design.design):
         self.connect_inst(temp)
 
         # -0.5*con.m1m2.width for vdd sharing
-        rack_inv_off1= (rack_off[0]-0.5*contact.m1m2.width, self.rack_gate.width+self.gap)        
+        rack_inv_off1= (rack_off[0]-0.5*contact.m1m2.width, self.rack_gate.width+self.gap+self.m1_space)        
         self.rack_inv_inst1=self.add_inst(name="delay_rack_inv1", 
                                     mod=self.inv2, 
                                     offset=rack_inv_off1, 
@@ -607,10 +617,10 @@ class bank_control_logic(design.design):
         self.add_path("poly",[self.rack_inst.get_pin("Gn1").uc(),self.rack_inst.get_pin("Gp1").uc()])
         
         #Adding a Z connection for output node
-        self.add_Zpath(self.rack_inst.get_pin("Dn2"),self.rack_inst.get_pin("Dp1"),self.m_pitch("m1"))
+        self.add_Zpath(self.rack_inst.get_pin("Dn2"),self.rack_inst.get_pin("Dp1"),self.m_pitch("m1")+self.m1_space)
 
         #Connecting output of rack_inst to inv input
-        self.add_Zpath(self.rack_inst.get_pin("Dn2"),self.rack_inv_inst1.get_pin("A"),-self.m_pitch("m1"))
+        self.add_Zpath(self.rack_inst.get_pin("Dn2"),self.rack_inv_inst1.get_pin("A"),-self.m_pitch("m1")-self.m1_width)
         self.add_path("metal1", [self.rack_inv_inst1.get_pin("Z").uc(),self.rack_inv_inst2.get_pin("A").lc()])
         self.add_path("metal1", [self.rack_inv_inst2.get_pin("Z").uc(),self.rack_inv_inst.get_pin("A").lc()])
         
@@ -624,25 +634,25 @@ class bank_control_logic(design.design):
         self.add_rect(layer="pimplant",
                       offset=self.rack_inst.ul(),
                       width=self.rack_inst.height,
-                      height=self.gap)
+                      height=self.gap+self.m1_space)
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1V_minarea(self.rack_inst.get_pin("Sp0").cc())
-        self.add_m1V_minarea(self.rack_inst.get_pin("Dp0").cc())
-        self.add_m1V_minarea(self.rack_inst.get_pin("Dp2").cc())
-        self.add_m1V_minarea(self.rack_inst.get_pin("Sn0").cc())
-        self.add_m1V_minarea(self.rack_inst.get_pin("Dn0").cc()-vector(0, self.m1_width))
-        self.add_m1H_minarea(self.rack_inst.get_pin("Dn1").cc())
-        self.add_m1P_minarea(self.rack_inst.get_pin("Gp0").lc(), self.rack_inst.ll().y,0)
-        self.add_m1P_minarea(self.rack_inst.get_pin("Gp2").lc(), self.rack_inst.ll().y,0)
-        self.add_m1P_minarea(self.rack_inst.get_pin("Gn2").lc(), self.rack_inst.ul().y,0)
-        self.add_m1H_minarea(self.rack_inv_inst.get_pin("Z").uc())
+        self.add_m1_minarea(self.rack_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.rack_inst.get_pin("Dp0").cc())
+        self.add_m1_minarea(self.rack_inst.get_pin("Dp2").cc())
+        self.add_m1_minarea(self.rack_inst.get_pin("Sn0").cc())
+        self.add_m1_minarea(self.rack_inst.get_pin("Dn0").cc()-vector(0, self.m1_width))
+        self.add_m1_minarea(self.rack_inst.get_pin("Dn1").cc())
+        self.add_m1P_minarea(vector(self.rack_inst.get_pin("Gp0").lc().x+self.co_xshift, self.rack_inst.get_pin("Gp0").lc().y), 
+                            self.rack_inst.by(),-2*contact.poly.height)
+        self.add_m1P_minarea(self.rack_inst.get_pin("Gp2").lc(), self.rack_inst.by(),0)
+        self.add_m1P_minarea(self.rack_inst.get_pin("Gn2").lc(), self.rack_inst.uy(),-self.m1_width)
         
     def add_wack_gate(self):
         """" Adds the pull_up_pull_down network for wack-gate """
 
         #add 5*m1_pitch for 5 connections of wack_gate
-        wack_off= (self.rack_inst.lr().x+5*self.m_pitch("m1"),0)
+        wack_off= (self.rack_inst.rx()+5*self.m_pitch("m1"),0)
         self.wack_inst=self.add_inst(name="wack_gate", 
                                      mod=self.wack_gate, 
                                      offset=wack_off, 
@@ -658,7 +668,7 @@ class bank_control_logic(design.design):
         self.connect_inst(temp)
 
         # -0.5*con.m1m2.width for vdd sharing
-        wack_inv_off1= (self.wack_inst.lr().x-self.inv.height-0.5*contact.m1m2.width,
+        wack_inv_off1= (self.wack_inst.rx()-self.inv.height-0.5*contact.m1m2.width,
                        self.wack_gate.width+self.gap)        
         self.wack_inv_inst1=self.add_inst(name="delay_wack_inv1", 
                                          mod=self.inv2, 
@@ -697,7 +707,7 @@ class bank_control_logic(design.design):
         
         #Connecting output of wack_inst to inv input
         pos1=(self.wack_inv_inst1.get_pin("A").bc()-vector(0,0.5*self.m1_width))
-        pos2=(self.wack_inv_inst1.lr().x-self.m_pitch("m1"),pos1[1])
+        pos2=(self.wack_inv_inst1.rx()-self.m1_space-contact.m1m2.width,pos1[1])
         pos3=(pos2[0],self.wack_inst.get_pin("Dn2").uc().y)
         self.add_path("metal1", [self.wack_inv_inst1.get_pin("A").uc(),
                                  pos1, pos2, pos3, self.wack_inst.get_pin("Dn2").ul()])
@@ -717,22 +727,22 @@ class bank_control_logic(design.design):
                       height=self.gap)
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1V_minarea(self.wack_inst.get_pin("Sp0").cc())
-        self.add_m1V_minarea(self.wack_inst.get_pin("Dp0").cc())
-        self.add_m1V_minarea(self.wack_inst.get_pin("Dp2").cc())
-        self.add_m1V_minarea(self.wack_inst.get_pin("Sn0").cc())
-        self.add_m1V_minarea(self.wack_inst.get_pin("Dn0").cc())
-        self.add_m1H_minarea(self.wack_inst.get_pin("Dn1").cc())
-        self.add_m1P_minarea(self.wack_inst.get_pin("Gn2").lc(),self.wack_inst.ul().y,0)
-        self.add_m1P_minarea(self.wack_inst.get_pin("Gp0").lc(),self.wack_inst.ll().y,0)
-        self.add_m1P_minarea(self.wack_inst.get_pin("Gp2").lc(),self.wack_inst.ll().y,0)
-        self.add_m1H_minarea(self.wack_inv_inst.get_pin("Z").uc())
+        self.add_m1_minarea(self.wack_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.wack_inst.get_pin("Dp0").cc())
+        self.add_m1_minarea(self.wack_inst.get_pin("Dp2").cc())
+        self.add_m1_minarea(self.wack_inst.get_pin("Sn0").cc())
+        self.add_m1_minarea(self.wack_inst.get_pin("Dn0").cc())
+        self.add_m1_minarea(self.wack_inst.get_pin("Dn1").cc()+vector(0, self.m1_width))
+        self.add_m1P_minarea(self.wack_inst.get_pin("Gn2").lc(),self.wack_inst.uy(),0)
+        self.add_m1P_minarea(self.wack_inst.get_pin("Gp0").lc(),self.wack_inst.by(),0)
+        self.add_m1P_minarea(vector(self.wack_inst.get_pin("Gp2").lc().x+self.co_xshift,self.wack_inst.get_pin("Gp2").lc().y),
+                             self.wack_inst.by(),-2*contact.poly.height)
 
     def add_dec_en_gate(self):
         """ Adds delays for decode_enable signals """
 
         #add 4*m1_pitch for 4 connections of decoder_enable_gate + 0.5*con.m1m2.width for vdd sharing
-        delay_inv_off= (self.wack_inst.lr().x+4*self.m_pitch("m1")+\
+        delay_inv_off= (self.wack_inst.rx()+4*self.m_pitch("m1")+\
                         0.5*contact.m1m2.width, self.inv5.width)        
         self.dec_en_inst=self.add_inst(name="decoder_enable_inv", 
                                        mod=self.inv5, 
@@ -749,7 +759,7 @@ class bank_control_logic(design.design):
         """ Adds buffer for rreq signal of dout merge array when two_level_bank"""
 
         #add 4*m1_pitch for 4 connections of rreq_gate + 0.5*con.m1m2.width for vdd sharing
-        rreq_mrg_inv_off= (self.wack_inst.lr().x+ 2* self.inv.height+4*self.m_pitch("m1")+\
+        rreq_mrg_inv_off= (self.wack_inst.rx()+ 2* self.inv.height+4*self.m_pitch("m1")+\
                            0.5*contact.m1m2.width,self.inv5.width)        
         self.rreq_mrg_inv1_inst=self.add_inst(name="rreq_merge_inv_0", 
                                               mod=self.inv5, 
@@ -760,35 +770,39 @@ class bank_control_logic(design.design):
         
         self.rreq_mrg_inv2_inst=self.add_inst(name="rreq_merge_inv_1", 
                                               mod=self.inv, 
-                                              offset=rreq_mrg_inv_off+vector(0,self.inv.width), 
+                                              offset=rreq_mrg_inv_off+vector(0,self.inv.width+3*self.m_pitch("m1")), 
                                               mirror="MX", 
                                               rotate=270)
         self.connect_inst(["rreq", "pre_rreq", "vdd", "gnd"])
 
-        rreq_mrg_in_off=self.rreq_mrg_inv2_inst.get_pin("A")
-        rreq_mrg_out_off=self.rreq_mrg_inv1_inst.get_pin("Z")
+        rreq_mrg_out_off1=self.rreq_mrg_inv2_inst.get_pin("Z").uc()
+        rreq_mrg_in_off1=self.rreq_mrg_inv1_inst.get_pin("A").uc()
+        mid_pos1=(rreq_mrg_in_off1.x, rreq_mrg_in_off1.y+self.m_pitch("m1"))
+        mid_pos2=(rreq_mrg_out_off1.x, rreq_mrg_in_off1.y+self.m_pitch("m1"))
         
         #Connecting output of rreq_inv2 to rreq_inv2 input
-        self.add_path("metal1", [self.rreq_mrg_inv1_inst.get_pin("A").uc(),
-                                 self.rreq_mrg_inv2_inst.get_pin("Z").lc()])
+        self.add_path("metal1", [rreq_mrg_in_off1, mid_pos1, mid_pos2, rreq_mrg_out_off1])
 
-        self.add_path("metal1", [rreq_mrg_out_off.uc(),(rreq_mrg_out_off.uc().x, self.min_off_y)])
+
+        rreq_mrg_in_off=self.rreq_mrg_inv2_inst.get_pin("A").uc()
+        rreq_mrg_out_off=self.rreq_mrg_inv1_inst.get_pin("Z").uc()
+        self.add_path("metal1", [rreq_mrg_out_off,(rreq_mrg_out_off.x, self.min_off_y)])
         
         self.add_layout_pin(text="rreq_merge",
                             layer=self.m1_pin_layer,
-                            offset=(rreq_mrg_out_off.ll().x, self.min_off_y),
+                            offset=(self.rreq_mrg_inv1_inst.get_pin("Z").lx(), self.min_off_y),
                             width=self.m1_width,
                             height=self.m1_width)
         
-        pos1=rreq_mrg_in_off.uc()+vector(0,self.m_pitch("m1"))
-        pos2=(self.rreq_mrg_inv2_inst.lr().x+self.m_pitch("m1"),pos1[1])
+        pos1=rreq_mrg_in_off+vector(0,self.m_pitch("m1"))
+        pos2=(self.rreq_mrg_inv2_inst.rx()+self.m_pitch("m1"),pos1[1])
         pos3=(pos2[0], self.rreq_off_y)
-        self.add_wire(self.m1_rev_stack, [rreq_mrg_in_off.uc(),pos1, pos2, pos3]) 
+        self.add_wire(self.m1_rev_stack, [rreq_mrg_in_off,pos1, pos2, pos3]) 
         
         self.add_via(self.m1_stack,(pos2[0],self.rreq_off_y), rotate=90)
                            
         # Calculating the offset for next cell
-        self.rreq_mrg_inv1_inst_lr_x = self.rreq_mrg_inv1_inst.lr().x+2*self.m_pitch("m1")
+        self.rreq_mrg_inv1_inst_lr_x = self.rreq_mrg_inv1_inst.rx()+2*self.m_pitch("m1")
     
     def add_WC_OR_gate(self):
         """" Adds the pull_up_pull_down network for write_complete-gate """
@@ -811,7 +825,7 @@ class bank_control_logic(design.design):
         self.connect_inst(temp)
         
         # -0.5*con.m1m2.width for vdd sharing
-        wc_inv_off= (wc_off[0]-0.5*contact.m1m2.width, self.wc_gate.width)        
+        wc_inv_off= (wc_off[0]-(self.wc_gate.height-self.inv.height)+0.5*contact.m1m2.width, self.wc_gate.width+self.gap)        
         self.wc_inv_inst=self.add_inst(name="write_complete_inv", 
                                        mod=self.inv, 
                                        offset=wc_inv_off, 
@@ -836,29 +850,31 @@ class bank_control_logic(design.design):
             self.add_Zpath(Dn_contact[i], Dn_contact[i+1], -1.5*self.m_pitch("m1"))
 
         #Adding a Z connection for output node
-        Dp_contact = self.wc_inst.get_pin("Dp0").uc()
-        self.add_path("metal1", [Dn_contact[self.num_subanks/2-1].uc(), Dp_contact])
+        Dp_contact = self.wc_inst.get_pin("Dp0")
+        self.add_path("metal1", [Dn_contact[self.num_subanks/2-1].uc(), Dp_contact.uc()])
         
         #Connecting output of wc_inst to inv input
-        self.add_path("metal1", [Dp_contact, self.wc_inv_inst.get_pin("A").uc()])
+        self.add_Zpath(self.wc_inv_inst.get_pin("A"),Dp_contact,self.m_pitch("m1"))
         
         #Connecting the vdd of inv to wc_inst, gnd is connected by abutment
+        self.add_path("metal1", [self.wc_inst.get_pin("gnd").uc(), 
+                                 self.wc_inv_inst.get_pin("gnd").lc()], width=contact.m1m2.width)
         self.add_path("metal1", [self.wc_inst.get_pin("vdd").uc(), 
-                                 self.wc_inv_inst.get_pin("vdd").lc()], width=contact.m1m2.width)
+                                 self.wc_inv_inst.get_pin("vdd").uc()], width=contact.m1m2.width)
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1H_minarea(self.wc_inst.get_pin("Sp0").cc())
-        self.add_m1V_minarea(self.wc_inst.get_pin("Sn0").cc())
-        self.add_m1V_minarea(self.wc_inst.get_pin("Dn{0}".format(2*self.num_subanks-1)).cc())
-        self.add_m1P_minarea(self.wc_inst.get_pin("Sp0").ll(),self.wc_inst.ul().y,self.m_pitch("m1"))
+        self.add_m1_minarea(self.wc_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.wc_inst.get_pin("Sn0").cc())
+        self.add_m1_minarea(self.wc_inst.get_pin("Dn{0}".format(2*self.num_subanks-1)).cc())
+        self.add_m1P_minarea(self.wc_inst.get_pin("Gp0").lr(),self.wc_inst.uy(),self.m_pitch("m1"))
         for i in range(2*self.num_subanks-1):
-            self.add_m1V_minarea(self.wc_inst.get_pin("Dn{0}".format(i)).cc())
+            self.add_m1_minarea(self.wc_inst.get_pin("Dn{0}".format(i)).cc())
 
     def add_DR_OR_gate(self):
         """" Adds the pull_up_pull_down network for write_complete-gate """
 
         #add a gap for well/implant spacing between write_complete and data_ready gate
-        dr_off= (self.wc_inst.lr().x+self.dr_gate.height+self.gap, self.dr_gate.width)
+        dr_off= (self.wc_inst.rx()+self.dr_gate.height+self.gap, self.dr_gate.width)
         self.dr_inst=self.add_inst(name="data_ready_gate", 
                                    mod=self.dr_gate, 
                                    offset=dr_off, 
@@ -874,7 +890,7 @@ class bank_control_logic(design.design):
         self.connect_inst(temp)
         
         # -0.5*con.m1m2.width for vdd sharing
-        dr_inv_off= (dr_off[0]-0.5*contact.m1m2.width, self.dr_gate.width)        
+        dr_inv_off= (dr_off[0]-(self.dr_gate.height-self.inv.height)+0.5*contact.m1m2.width, self.dr_gate.width+self.gap)        
         self.dr_inv_inst=self.add_inst(name="data_ready_inv", 
                                        mod=self.inv, 
                                        offset=dr_inv_off, 
@@ -899,23 +915,25 @@ class bank_control_logic(design.design):
             self.add_Zpath(Dn_contact[i], Dn_contact[i+1], -1.5*self.m_pitch("m1"))
 
         #Adding a Z connection for output node
-        Dp_contact = self.dr_inst.get_pin("Dp0").uc()
-        self.add_path("metal1", [Dn_contact[self.num_subanks/2-1].uc(), Dp_contact])
+        Dp_contact = self.dr_inst.get_pin("Dp0")
+        self.add_path("metal1", [Dn_contact[self.num_subanks/2-1].uc(), Dp_contact.uc()])
         
         #Connecting output of dr_inst to inv input
-        self.add_path("metal1", [Dp_contact, self.dr_inv_inst.get_pin("A").uc()])
+        self.add_Zpath(self.dr_inv_inst.get_pin("A"), Dp_contact, self.m_pitch("m1"))
         
         #Connecting the vdd of inv to dr_inst, gnd is connected by abutment
+        self.add_path("metal1", [self.dr_inst.get_pin("gnd").uc(), 
+                                 self.dr_inv_inst.get_pin("gnd").lc()], width=contact.m1m2.width)
         self.add_path("metal1", [self.dr_inst.get_pin("vdd").uc(), 
-                                 self.dr_inv_inst.get_pin("vdd").lc()], width=contact.m1m2.width)
+                                 self.dr_inv_inst.get_pin("vdd").uc()], width=contact.m1m2.width)
         
         #Adding min_area metal1 for active contacts with no connections and poly_contact positions
-        self.add_m1H_minarea(self.dr_inst.get_pin("Sp0").cc())
-        self.add_m1V_minarea(self.dr_inst.get_pin("Sn0").cc())
-        self.add_m1V_minarea(self.dr_inst.get_pin("Dn{0}".format(2*self.num_subanks-1)).cc())
-        self.add_m1P_minarea(self.dr_inst.get_pin("Sp0").ll(),self.dr_inst.ul().y,self.m_pitch("m1"))
+        self.add_m1_minarea(self.dr_inst.get_pin("Sp0").cc())
+        self.add_m1_minarea(self.dr_inst.get_pin("Sn0").cc())
+        self.add_m1_minarea(self.dr_inst.get_pin("Dn{0}".format(2*self.num_subanks-1)).cc())
+        self.add_m1P_minarea(self.dr_inst.get_pin("Gp0").lr(),self.dr_inst.uy(),self.m_pitch("m1"))
         for i in range(2*self.num_subanks-1):
-            self.add_m1V_minarea(self.dr_inst.get_pin("Dn{0}".format(i)).cc())
+            self.add_m1_minarea(self.dr_inst.get_pin("Dn{0}".format(i)).cc())
 
     def add_rbl(self,y_off):
         """ Adds the replica bitline """
@@ -943,34 +961,38 @@ class bank_control_logic(design.design):
         
         self.add_rect(layer="metal2", 
                       offset=(pchg_B.x, self.rw_off_y), 
-                      width=self.ack_rw_in_off.uc().x- pchg_B.x,
+                      width=self.ack_rw_in_off.uc().x- pchg_B.x+self.poly_to_active,
                       height = contact.m1m2.width)
 
-        self.add_via(self.m1_stack,(pchg_B.x, self.rw_off_y))
+        self.add_via(self.m1_stack,(pchg_B.x, self.rw_off_y - self.via_shift("v1")))
         
         self.add_path("metal1",[self.pchg_inst.get_pin("B").uc(), 
                                (self.pchg_inst.get_pin("B").uc().x, self.min_off_y)])
         
         # wen-gate rw-input connection
         self.add_path("poly",[self.wen_rw_in_off.uc(), (self.wen_rw_in_off.uc().x, 0)])
-        self.add_contact(self.poly_stack,(self.wen_rw_in_off.ll().x, 0))
-        self.add_path("metal1",[(self.wen_rw_in_off.ll().x+0.5*contact.poly.width, 0),
-                                (self.wen_rw_in_off.ll().x+0.5*contact.poly.width, self.rw_off_y)])
-        self.add_via(self.m1_stack,(self.wen_rw_in_off.ll().x, self.rw_off_y))
+        self.add_contact(self.poly_stack,(self.wen_rw_in_off.rx()-contact.poly.width, 0-self.via_shift("co")))
+        self.add_path("metal1",[(self.wen_rw_in_off.rx()-contact.poly.width+0.5*contact.poly.width, 0),
+                                (self.wen_rw_in_off.rx()-contact.poly.width+0.5*contact.poly.width, self.rw_off_y)])
+        self.add_via(self.m1_stack,(self.wen_rw_in_off.rx()-contact.poly.width, self.rw_off_y - self.via_shift("v1")))
         
         # sen-gate rw-input connection
         self.add_path("poly",[self.sen_rw_in_off.uc(), (self.sen_rw_in_off.uc().x, 0)])
-        self.add_contact(self.poly_stack, (self.sen_rw_in_off.ll().x,0))
-        self.add_path("metal1",[(self.sen_rw_in_off.ll().x+0.5*contact.poly.width,0), 
-                                (self.sen_rw_in_off.ll().x+0.5*contact.poly.width, self.rw_off_y)])
-        self.add_via(self.m1_stack, (self.sen_rw_in_off.ll().x, self.rw_off_y))
+        self.add_contact(self.poly_stack, (self.sen_rw_in_off.lx(),0-self.via_shift("co")))
+        self.add_path("metal1",[(self.sen_rw_in_off.lx()+0.5*contact.poly.width,0), 
+                                (self.sen_rw_in_off.lx()+0.5*contact.poly.width, self.rw_off_y)])
+        self.add_via(self.m1_stack, (self.sen_rw_in_off.lx(), self.rw_off_y - self.via_shift("v1")))
 
         # ack-gate rw-input connection
-        self.add_path("poly",[self.ack_rw_in_off.uc(),(self.ack_rw_in_off.uc().x,-self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack,(self.ack_rw_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_path("metal1",[(self.ack_rw_in_off.ll().x+0.5*contact.poly.width,-self.m_pitch("m1")), 
-                                (self.ack_rw_in_off.ll().x+0.5*contact.poly.width,self.rw_off_y)])
-        self.add_via(self.m1_stack, (self.ack_rw_in_off.ll().x, self.rw_off_y))
+        pos1= self.ack_rw_in_off.uc()
+        pos2=(pos1[0],self.ack_rw_in_off.uc().y-contact.active.height-self.well_enclose_active)
+        pos3=(self.ack_rw_in_off.uc().x+self.poly_to_active,pos2[1])
+        pos4=(pos3[0], -self.m_pitch("m1"))
+        self.add_path("poly", [pos1, pos2, pos3, pos4])
+        self.add_contact(self.poly_stack,(self.ack_rw_in_off.lx()+self.poly_to_active, -self.m_pitch("m1")-self.via_shift("co")))
+        self.add_path("metal1",[(self.ack_rw_in_off.lx()+0.5*contact.poly.width+self.poly_to_active,-self.m_pitch("m1")), 
+                                (self.ack_rw_in_off.lx()+0.5*contact.poly.width+self.poly_to_active,self.rw_off_y)])
+        self.add_via(self.m1_stack, (self.ack_rw_in_off.lx()+self.poly_to_active, self.rw_off_y - self.via_shift("v1")))
 
     def add_input_w_pin(self):
         """ Adds the input w pin """
@@ -986,29 +1008,29 @@ class bank_control_logic(design.design):
                       width=self.ack_w_in_off.uc().x- pchg_C.x + self.poly_to_active,
                       height = contact.m1m2.width)
         
-        self.add_via(self.m1_stack, (pchg_C.x, self.w_off_y))
+        self.add_via(self.m1_stack, (pchg_C.x, self.w_off_y - self.via_shift("v1")))
         self.add_path("metal1",[self.pchg_inst.get_pin("C").uc(), 
                                (self.pchg_inst.get_pin("C").uc().x, self.min_off_y)])
 
         # wen-gate w-input connection
-        self.add_path("poly",[self.wen_w_in_off.uc(), (self.wen_w_in_off.uc().x,0)])
-        self.add_contact(self.poly_stack, (self.wen_w_in_off.ll().x, 0))
-        self.add_path("metal1",[(self.wen_w_in_off.ll().x+0.5*contact.poly.width, 0), 
-                                (self.wen_w_in_off.ll().x+0.5*contact.poly.width, self.w_off_y)])
-        self.add_via(self.m1_stack, (self.wen_w_in_off.ll().x, self.w_off_y))
+        self.add_path("poly",[self.wen_w_in_off.uc(), (self.wen_w_in_off.uc().x,2*contact.poly.height)])
+        self.add_contact(self.poly_stack, (self.wen_w_in_off.rx()-contact.poly.width, 2*contact.poly.height-self.via_shift("co")))
+        self.add_path("metal1",[(self.wen_w_in_off.rx()-contact.poly.width+0.5*contact.poly.width, 2*contact.poly.height), 
+                                (self.wen_w_in_off.rx()-contact.poly.width+0.5*contact.poly.width, self.w_off_y)])
+        self.add_via(self.m1_stack, (self.wen_w_in_off.rx()-contact.poly.width, self.w_off_y - self.via_shift("v1")))
 
         # ack-gate w-input connection
         pos1= self.ack_w_in_off.uc()
-        pos2=(pos1[0],self.ack_w_in_off.uc().y-0.5*contact.active.height-self.well_enclose_active)
+        pos2=(pos1[0],self.ack_w_in_off.uc().y-contact.active.height-self.well_enclose_active-self.poly_space)
         pos3=(self.ack_w_in_off.uc().x+self.poly_to_active,pos2[1])
-        pos4=(pos3[0], 0)
+        pos4=(pos3[0], -3*self.m_pitch("m1"))
         self.add_path("poly", [pos1, pos2, pos3, pos4])
-        self.add_contact(self.poly_stack, (self.ack_w_in_off.ll().x+self.poly_to_active, 0))
+        self.add_contact(self.poly_stack, (self.ack_w_in_off.rx()+self.poly_to_active-contact.poly.width, -3*self.m_pitch("m1")-self.via_shift("co")))
         
-        pos1=(self.ack_w_in_off.ll().x+self.poly_to_active+0.5*contact.poly.width,0)
+        pos1=(self.ack_w_in_off.rx()+self.poly_to_active+0.5*contact.poly.width-contact.poly.width,-3*self.m_pitch("m1"))
         pos2=(pos1[0],self.w_off_y)
         self.add_path("metal1",[pos1, pos2])
-        self.add_via(self.m1_stack, (self.ack_w_in_off.ll().x+self.poly_to_active, self.w_off_y))
+        self.add_via(self.m1_stack, (self.ack_w_in_off.rx()+self.poly_to_active-contact.poly.width, self.w_off_y - self.via_shift("v1")))
 
     def add_input_r_pin(self):
         """ Adds the input r pin """
@@ -1021,40 +1043,40 @@ class bank_control_logic(design.design):
                             width=self.m1_width)
         self.add_rect(layer="metal2",
                       offset=(pchg_A.x,self.r_off_y), 
-                      width=self.ack_inst.ll().x-2*self.m_pitch("m1")-pchg_A.x,
+                      width=self.ack_inst.lx()-3*self.m_pitch("m1")-pchg_A.x,
                       height = contact.m1m2.width)
-        self.add_via(self.m1_stack, (pchg_A.x, self.r_off_y))
+        self.add_via(self.m1_stack, (pchg_A.x, self.r_off_y - self.via_shift("v1")))
         self.add_path("metal1",[self.pchg_inst.get_pin("A").uc(),
                                (self.pchg_inst.get_pin("A").uc().x, self.min_off_y)])
         
         # sen-gate r-input connection
-        self.add_path("poly",[self.sen_r_in_off.uc(), (self.sen_r_in_off.uc().x,0)])
-        self.add_contact(self.poly_stack, (self.sen_r_in_off.ll().x, 0))
+        self.add_path("poly",[self.sen_r_in_off.uc(), (self.sen_r_in_off.uc().x, 2*contact.poly.height)])
+        self.add_contact(self.poly_stack, (self.sen_r_in_off.rx(), 2*contact.poly.height-self.via_shift("co")))
 
-        self.add_path("metal1",[(self.sen_r_in_off.ll().x+0.5*contact.poly.width, 0), 
-                                (self.sen_r_in_off.ll().x+0.5*contact.poly.width, self.r_off_y)])
-        self.add_via(self.m1_stack, (self.sen_r_in_off.ll().x, self.r_off_y))
+        self.add_path("metal1",[(self.sen_r_in_off.rx()+0.5*contact.poly.width, 2*contact.poly.height), 
+                                (self.sen_r_in_off.rx()+0.5*contact.poly.width, self.r_off_y)])
+        self.add_via(self.m1_stack, (self.sen_r_in_off.rx()+contact.m1m2.height, self.r_off_y), rotate=90)
 
         # ack-gate r-input connection
         self.add_path("poly",[self.ack_r_in_off.uc(), 
-                             (self.ack_r_in_off.uc().x, self.ack_inst.ul().y)])
-        self.add_contact(self.poly_stack,(self.ack_r_in_off.ll().x, 
-                                          self.ack_inst.ul().y-contact.poly.height))
-        self.add_via(self.m1_stack, (self.ack_r_in_off.ll().x, 
-                                     self.ack_inst.ul().y-contact.m1m2.height))
+                             (self.ack_r_in_off.uc().x, self.ack_inst.uy())])
+        self.add_contact(self.poly_stack,(self.ack_r_in_off.lx()-self.via_co_shift, 
+                                          self.ack_inst.uy()-contact.poly.height+self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.ack_r_in_off.lx(), 
+                                     self.ack_inst.uy()-contact.m1m2.height))
 
-        pos1=(self.ack_r_in_off.uc().x, self.ack_inst.ul().y-0.5*self.m2_width)
-        pos2=(self.ack_inst.ll().x-2*self.m_pitch("m1"), pos1[1])
+        pos1=(self.ack_r_in_off.uc().x, self.ack_inst.uy()-0.5*self.m2_width)
+        pos2=(self.ack_inst.lx()-3*self.m_pitch("m1"), pos1[1])
         pos3=(pos2[0], self.r_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width,self.r_off_y), rotate=90)
+        self.add_via(self.m1_stack, (pos2[0]+0.5*self.m1_width+ self.via_shift("v1"),self.r_off_y), rotate=90)
 
     def add_input_reset_pin(self):
         """ Adds the input reset pin """
 
         self.add_layout_pin(text="reset", 
                             layer=self.m1_pin_layer, 
-                            offset=(self.rst_in_off.ll().x, self.min_off_y), 
+                            offset=(self.rst_in_off.lx(), self.min_off_y), 
                             width=self.m1_width)
         # reset-gate reset input 
         self.add_path("metal1",[self.rst_in_off.uc(), (self.rst_in_off.uc().x,self.min_off_y)])
@@ -1062,78 +1084,78 @@ class bank_control_logic(design.design):
         # U-gate reset input 
         self.add_rect(layer="metal2", 
                       offset=(self.rst_in_off.uc().x, self.reset_off_y), 
-                      width=self.u_inst.lr().x+self.m_pitch("m1")-self.rst_in_off.uc().x,
+                      width=self.u_inst.rx()+self.m_pitch("m1")-self.rst_in_off.uc().x,
                       height = contact.m1m2.width)
-        self.add_via(self.m1_stack, (self.rst_in_off.uc().x,self.reset_off_y))
+        self.add_via(self.m1_stack, (self.rst_in_off.uc().x,self.reset_off_y - self.via_shift("v1")))
         self.add_path("poly",[self.u_rst_in_off.uc(), 
-                             (self.u_rst_in_off.uc().x,self.u_gate.width+contact.poly.height)])
+                             (self.u_rst_in_off.uc().x,self.u_gate.width+contact.poly.height+self.m_pitch("m1"))])
         self.add_contact(self.poly_stack, 
-                         (self.u_rst_in_off.lr().x, self.u_gate.width))
-        self.add_via(self.m1_stack, (self.u_rst_in_off.lr().x, self.u_gate.width))
+                         (self.u_rst_in_off.rx()-self.via_co_shift, self.u_gate.width+self.m_pitch("m1")+self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.u_rst_in_off.rx(), self.u_gate.width+self.m_pitch("m1")))
         
-        pos1=(self.u_rst_in_off.lr().x, self.u_gate.width+0.5*self.m2_width)
-        pos2=(self.u_inst.lr().x+self.m_pitch("m1"), pos1[1])
+        pos1=(self.u_rst_in_off.rx(), self.u_gate.width+self.m_pitch("m1")+0.5*self.m2_width)
+        pos2=(self.u_inst.rx()+self.m_pitch("m1"), pos1[1])
         pos3=(pos2[0], self.reset_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0], self.reset_off_y))
+        self.add_via(self.m1_stack, (pos2[0], self.reset_off_y - self.via_shift("v1")))
 
         # reset-gate reset_bar connection
         self.add_rect(layer="metal2", 
                       offset=(self.rst_out_off.uc().x,self.reset_bar_off_y), 
-                      width=self.wack_inst.lr().x+self.m_pitch("m1")-self.rst_out_off.uc().x,
+                      width=self.wack_inst.rx()+self.m_pitch("m1")-self.rst_out_off.uc().x,
                       height = contact.m1m2.width)
 
-        self.add_via(self.m1_stack, (self.rst_out_off.ll().x,self.reset_bar_off_y))
+        self.add_via(self.m1_stack, (self.rst_out_off.lx(),self.reset_bar_off_y - self.via_shift("v1")))
         self.add_path("metal1",[self.rst_out_off.uc(),
                                (self.rst_out_off.uc().x,self.reset_bar_off_y)])
 
         # ack-gate reset_bar connection
-        self.add_path("poly",[self.ack_reset_bar_in_off.uc(), (self.ack_reset_bar_in_off.uc().x, 0)])
-        self.add_contact(self.poly_stack, (self.ack_reset_bar_in_off.ll().x, 0))
-        self.add_via(self.m1_stack, (self.ack_reset_bar_in_off.ll().x, 0))
+        self.add_path("poly",[self.ack_reset_bar_in_off.uc(), (self.ack_reset_bar_in_off.uc().x, -2*self.m_pitch("m1"))])
+        self.add_contact(self.poly_stack, (self.ack_reset_bar_in_off.rx()-self.via_co_shift+self.co_xshift-contact.poly.width, -2*self.m_pitch("m1")-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.ack_reset_bar_in_off.rx()+self.co_xshift-contact.poly.width, -2*self.m_pitch("m1")))
 
-        pos1=(self.ack_reset_bar_in_off.uc().x,0.5*self.m2_width)
-        pos2=(self.ack_inst.ll().x-self.m_pitch("m1"), pos1[1])
+        pos1=(self.ack_reset_bar_in_off.uc().x,-2*self.m_pitch("m1")+0.5*self.m2_width)
+        pos2=(self.ack_inst.lx()-self.m_pitch("m1"), pos1[1])
         pos3=(pos2[0], self.reset_bar_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.reset_bar_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.reset_bar_off_y - self.via_shift("v1")))
 
         # rack-gate reset_bar connection
         self.add_path("poly",[self.rack_rst_b_in_off.uc(), 
                              (self.rack_rst_b_in_off.uc().x,-self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack,(self.rack_rst_b_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_via(self.m1_stack, (self.rack_rst_b_in_off.ll().x, -self.m_pitch("m1")))
+        self.add_contact(self.poly_stack,(self.rack_rst_b_in_off.lx()-self.via_co_shift, -self.m_pitch("m1")-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.rack_rst_b_in_off.lx(), -self.m_pitch("m1")))
         
         pos1= (self.rack_rst_b_in_off.uc().x,-self.m_pitch("m1")+0.5*self.m2_width)
-        pos2= (self.rack_inst.ll().x-self.m_pitch("m1"),pos1[1])
+        pos2= (self.rack_inst.lx()-2*self.m_pitch("m1"),pos1[1])
         pos3= (pos2[0], self.reset_bar_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.reset_bar_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.reset_bar_off_y - self.via_shift("v1")))
 
         # wack-gate reset_bar connection
-        self.add_path("poly",[self.wack_rst_b_in_off.uc(),(self.wack_rst_b_in_off.uc().x, -self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack,(self.wack_rst_b_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_via(self.m1_stack, (self.wack_rst_b_in_off.ll().x, -self.m_pitch("m1")))
+        self.add_path("poly",[self.wack_rst_b_in_off.uc(),(self.wack_rst_b_in_off.uc().x, 2*contact.poly.height)])
+        self.add_contact(self.poly_stack,(self.wack_rst_b_in_off.lx()-self.via_co_shift+self.co_xshift, 2*contact.poly.height-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.wack_rst_b_in_off.lx()+self.co_xshift, 2*contact.poly.height))
         
-        pos1= (self.wack_rst_b_in_off.uc().x, -self.m_pitch("m1")+0.5*self.m2_width)
-        pos2= (self.wack_inst.lr().x+self.m_pitch("m1"),pos1[1])
+        pos1= (self.wack_rst_b_in_off.uc().x,2*contact.poly.height+0.5*self.m2_width)
+        pos2= (self.wack_inst.rx()+self.m_pitch("m1"),pos1[1])
         pos3= (pos2[0], self.reset_bar_off_y)
         self.add_wire(self.m1_rev_stack,[pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.reset_bar_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.reset_bar_off_y - self.via_shift("v1")))
     
     def add_input_wreq_pin(self):
         """ Adds the output wreq pin """
 
         self.add_layout_pin(text="wreq", 
                             layer=self.m1_pin_layer, 
-                            offset=(self.wack_wreq_in_off.ll().x,self.min_off_y), 
+                            offset=(self.wack_wreq_in_off.lx()+2*self.co_xshift,self.min_off_y), 
                             width=self.m1_width,
                             height=self.m1_width)
         # wack-gate wreq connection
         self.add_path("poly",[self.wack_wreq_in_off.uc(), (self.wack_wreq_in_off.uc().x, 0)])
-        self.add_contact(self.poly_stack,(self.wack_wreq_in_off.ll().x, 0))
-        self.add_path("metal1",[(self.wack_wreq_in_off.ll().x+0.5*self.m1_width, contact.poly.height), 
-                                (self.wack_wreq_in_off.ll().x+0.5*self.m1_width, self.min_off_y)])
+        self.add_contact(self.poly_stack,(self.wack_wreq_in_off.lx()+self.co_xshift, 0-self.via_shift("co")))
+        self.add_path("metal1",[(self.wack_wreq_in_off.lx()+0.5*self.m1_width+2*self.co_xshift, contact.poly.height), 
+                                (self.wack_wreq_in_off.lx()+0.5*self.m1_width+2*self.co_xshift, self.min_off_y)])
 
     def add_input_rreq_pin(self):
         """ Adds the output rreq pin """
@@ -1141,19 +1163,19 @@ class bank_control_logic(design.design):
         # rack-gate rreq connection
         self.add_layout_pin(text="rreq", 
                             layer=self.m1_pin_layer, 
-                            offset=(self.rack_rreq_in_off.ll().x, self.min_off_y), 
+                            offset=(self.rack_rreq_in_off.lx()+2*self.co_xshift, self.min_off_y), 
                             width=self.m1_width)
         
         self.add_path("poly",[self.rack_rreq_in_off.uc(), (self.rack_rreq_in_off.uc().x,0)])
-        self.add_contact(self.poly_stack,(self.rack_rreq_in_off.uc().x-0.5*contact.poly.width, 0))
-        self.add_path("metal1",[(self.rack_rreq_in_off.uc().x, 0), 
-                                (self.rack_rreq_in_off.uc().x, self.min_off_y)])
+        self.add_contact(self.poly_stack,(self.rack_rreq_in_off.lx()+self.co_xshift, 0-self.via_shift("co")))
+        self.add_path("metal1",[(self.rack_rreq_in_off.lx()+2*self.co_xshift+0.5*self.m1_width, 0), 
+                                (self.rack_rreq_in_off.lx()+2*self.co_xshift+0.5*self.m1_width, self.min_off_y)])
 
         self.add_rect(layer="metal2",
                       offset= (self.rack_rreq_in_off.uc().x, self.rreq_off_y),
                       width= self.pin_width-self.rack_rreq_in_off.uc().x-self.m_pitch("m1"),
                       height=self.m2_width)
-        self.add_via(self.m1_stack, (self.rack_rreq_in_off.uc().x,self.rreq_off_y))
+        self.add_via(self.m1_stack, (self.rack_rreq_in_off.uc().x,self.rreq_off_y - self.via_shift("v1")))
 
 
     def add_input_dr_pins(self):
@@ -1162,21 +1184,23 @@ class bank_control_logic(design.design):
         if self.num_subanks > 1:
             for i in range(self.num_subanks):
                 self.add_path("poly",[self.DR_off[i].uc(), 
-                                     (self.DR_off[i].uc().x, -self.m_pitch("m1"))])
+                                     (self.DR_off[i].uc().x, -2*i*self.m_pitch("m1"))])
                 self.add_contact(self.poly_stack,
-                                 (self.DR_off[i].ll().x,-self.m_pitch("m1")))
+                                 (self.DR_off[i].lx(),-2*i*self.m_pitch("m1")-self.via_shift("co")))
 
-                x_off=self.DR_off[i].ll().x+0.5*contact.poly.width
-                self.add_path("metal1",[(x_off, -self.m_pitch("m1")),
+                x_off=self.DR_off[i].lx()+0.5*contact.poly.width
+                self.add_path("metal1",[(x_off, -2*i*self.m_pitch("m1")),
                                         (x_off, self.data_ready_off_y- i*self.m_pitch("m2"))])
-                self.add_via(self.m1_stack, (self.DR_off[i].uc().x+self.m1_width,
-                                             self.data_ready_off_y- i*self.m_pitch("m2")), rotate=90)
+                if ((-self.data_ready_off_y- i*self.m_pitch("m2")) < (self.m1_minarea/contact.m1m2.width)):
+                    self.add_m1_minarea((self.DR_off[i].lx()+self.co_xshift+0.5*contact.m1m2.width, self.data_ready_off_y-(i-1)*self.m_pitch("m2")))
+                self.add_via(self.m1_stack, (self.DR_off[i].lx()+self.co_xshift,
+                                             self.data_ready_off_y- i*self.m_pitch("m2")-self.via_shift("v1")))
 
                 self.add_rect(layer="metal2", 
                               offset=(-self.m_pitch("m1"),
                                       self.data_ready_off_y- i*self.m_pitch("m2")),
                               width=self.width,
-                              height = contact.m1m2.width)
+                              height = contact.m2m3.first_layer_height)
                 self.add_layout_pin(text="data_ready[{0}]".format(i), 
                                     layer=self.m2_pin_layer, 
                                     offset=(-self.m_pitch("m1"),
@@ -1187,7 +1211,7 @@ class bank_control_logic(design.design):
         else:
                 self.add_rect(layer="metal2", 
                               offset=(-self.m_pitch("m1"),self.dr_off_y), 
-                              width=self.dec_en_inst.lr().x,
+                              width=self.dec_en_inst.rx(),
                               height = contact.m1m2.width)
                 self.add_layout_pin(text="data_ready[0]", 
                                     layer=self.m2_pin_layer, 
@@ -1201,22 +1225,22 @@ class bank_control_logic(design.design):
                       width=self.pin_width, 
                       height = contact.m1m2.width)
         self.add_path("poly",[self.rack_dr_in_off.uc(), 
-                             (self.rack_dr_in_off.uc().x, self.rack_inst.ul().y+self.m1_width)])
-        self.add_contact(self.poly_stack,(self.rack_dr_in_off.ll().x, 
-                                          self.rack_inst.ul().y+self.m1_width-contact.poly.height))
-        self.add_via(self.m1_stack, (self.rack_dr_in_off.ll().x, 
-                                      self.rack_inst.ul().y+self.m1_width-contact.m1m2.height))
+                             (self.rack_dr_in_off.uc().x, self.rack_inst.uy()+self.m_pitch("m1"))])
+        self.add_contact(self.poly_stack,(self.rack_dr_in_off.lx()-self.via_co_shift, 
+                                          self.rack_inst.uy()+self.m_pitch("m1")-contact.poly.height+self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.rack_dr_in_off.lx(), 
+                                      self.rack_inst.uy()+self.m_pitch("m1")-contact.m1m2.height))
 
-        pos1= (self.rack_dr_in_off.uc().x, self.rack_inst.ul().y+self.m1_width-0.5*self.m2_width)
-        pos2= (self.rack_inst.ll().x-2*self.m_pitch("m1"),pos1[1])
+        pos1= (self.rack_dr_in_off.uc().x, self.rack_inst.uy()+self.m_pitch("m1")-0.5*self.m2_width)
+        pos2= (self.rack_inst.lx()-self.m_pitch("m1"),pos1[1])
         pos3= (pos2[0],self.dr_off_y)
         self.add_wire(self.m1_rev_stack,[pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0], self.dr_off_y))
+        self.add_via(self.m1_stack, (pos2[0], self.dr_off_y - self.via_shift("v1")))
         
         # Add data_ready-gate output
         if self.num_subanks > 1:
-            x_off = self.dr_inst.lr().x+2*self.m_pitch("m1")
-            self.add_via(self.m1_stack, (x_off, self.dr_off_y))
+            x_off = self.dr_inst.rx()+2*self.m_pitch("m1")
+            self.add_via(self.m1_stack, (x_off, self.dr_off_y - self.via_shift("v1")))
             self.add_wire(self.m1_rev_stack,[self.dr_off.uc(),
                            (self.dr_off.uc().x, self.comp_off_y+0.5*self.m2_width ), 
                            (x_off, self.comp_off_y+0.5*self.m2_width),
@@ -1227,20 +1251,20 @@ class bank_control_logic(design.design):
 
         if self.num_subanks > 1:
             for i in range(self.num_subanks):
-                self.add_path("poly",[self.WC_off[i].uc(),(self.WC_off[i].uc().x,-self.m_pitch("m1"))])
-                self.add_contact(self.poly_stack, (self.WC_off[i].ll().x,-self.m_pitch("m1")))
+                self.add_path("poly",[self.WC_off[i].uc(),(self.WC_off[i].uc().x,-2*i*self.m_pitch("m1"))])
+                self.add_contact(self.poly_stack, (self.WC_off[i].lx(),-2*i*self.m_pitch("m1")-self.via_shift("co")))
 
-                x_off = self.WC_off[i].ll().x+0.5*contact.poly.width
-                self.add_path("metal1",[(x_off,-self.m_pitch("m1")), 
+                x_off = self.WC_off[i].lx()+0.5*contact.poly.width
+                self.add_path("metal1",[(x_off,-2*i*self.m_pitch("m1")), 
                                         (x_off,self.write_comp_off_y- i*self.m_pitch("m2"))])
-                self.add_via(self.m1_stack, (self.WC_off[i].uc().x+self.m1_width,
-                                             self.write_comp_off_y- i*self.m_pitch("m2")), rotate=90)
+                self.add_via(self.m1_stack, (self.WC_off[i].lx()+self.co_xshift,
+                                             self.write_comp_off_y- i*self.m_pitch("m2")-self.via_shift("v1")))
 
                 self.add_rect(layer="metal2", 
                               offset=(-self.m_pitch("m1"),
                                        self.write_comp_off_y-i*self.m_pitch("m2")),
                               width=self.width,
-                              height = contact.m1m2.width)
+                              height = contact.m2m3.first_layer_height)
                 self.add_layout_pin(text="write_complete[{0}]".format(i), 
                                     layer=self.m2_pin_layer, 
                                     offset=(-self.m_pitch("m1"),
@@ -1250,7 +1274,7 @@ class bank_control_logic(design.design):
         else:
                 self.add_rect(layer="metal2", 
                                     offset=(-self.m_pitch("m1"),self.wc_off_y), 
-                                    width=self.dec_en_inst.lr().x,
+                                    width=self.dec_en_inst.rx(),
                                     height = contact.m1m2.width)
                 self.add_layout_pin(text="write_complete[0]", 
                                     layer=self.m2_pin_layer, 
@@ -1263,22 +1287,22 @@ class bank_control_logic(design.design):
                       width=self.pin_width, 
                       height = contact.m1m2.width)
         self.add_path("poly",[self.wack_wc_in_off.uc(),
-                             (self.wack_wc_in_off.uc().x,self.wack_inst.ul().y)])
+                             (self.wack_wc_in_off.uc().x,self.wack_inst.uy())])
         self.add_contact(self.poly_stack, 
-                         (self.wack_wc_in_off.ll().x,self.wack_inst.ul().y-contact.poly.height))
-        self.add_via(self.m1_stack, (self.wack_wc_in_off.ll().x,
-                                     self.wack_inst.ul().y-contact.m1m2.height))
+                         (self.wack_wc_in_off.lx()-self.via_co_shift,self.wack_inst.uy()-contact.poly.height+self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.wack_wc_in_off.lx(),
+                                     self.wack_inst.uy()-contact.m1m2.height))
 
-        pos1= (self.wack_wc_in_off.uc().x, self.wack_inst.ul().y-0.5*self.m2_width)
-        pos2= (self.wack_inst.lr().x+2*self.m_pitch("m1"), pos1[1])
+        pos1= (self.wack_wc_in_off.uc().x, self.wack_inst.uy()-0.5*self.m2_width)
+        pos2= (self.wack_inst.rx()+2*self.m_pitch("m1"), pos1[1])
         pos3= (pos2[0], self.wc_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.wc_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.wc_off_y - self.via_shift("v1")))
         
         # Add write_complete-gate output
         if self.num_subanks > 1:
-            x_off =  self.wc_inst.ll().x-self.m_pitch("m1")
-            self.add_via(self.m1_stack, (x_off, self.wc_off_y))
+            x_off =  self.wc_inst.lx()-self.m_pitch("m1")
+            self.add_via(self.m1_stack, (x_off, self.wc_off_y - self.via_shift("v1")))
             self.add_wire(self.m1_rev_stack,
                           [self.wc_off.uc(), (self.wc_off.uc().x, self.comp_off_y+0.5*self.m2_width), 
                           (x_off, self.comp_off_y+0.5*self.m2_width),
@@ -1297,29 +1321,29 @@ class bank_control_logic(design.design):
                                  width=contact.m1m2.width,
                                  height=contact.m1m2.width)
 
-             self.add_path("poly",[self.wc_go_off[i].uc(),(self.wc_go_off[i].uc().x, 0)])
-             self.add_contact(self.poly_stack, (self.wc_go_off[i].ll().x,0))
+             self.add_path("poly",[self.wc_go_off[i].uc(),(self.wc_go_off[i].uc().x, -(2*i+1)*self.m_pitch("m1"))])
+             self.add_contact(self.poly_stack, (self.wc_go_off[i].lx(),-(2*i+1)*self.m_pitch("m1")-self.via_shift("co")))
 
-             x_off = self.wc_go_off[i].ll().x+0.5*contact.poly.width
-             self.add_path("metal1",[(x_off,0),(x_off, self.go_off_y-i*self.m_pitch("m1"))])
+             x_off = self.wc_go_off[i].lx()+0.5*contact.poly.width
+             self.add_path("metal1",[(x_off,-(2*i+1)*self.m_pitch("m1")),(x_off, self.go_off_y-i*self.m_pitch("m1"))])
               
-             self.add_via(self.m1_stack, (self.wc_go_off[i].uc().x,
-                                          self.go_off_y-i*self.m_pitch("m1")), rotate=90)
+             self.add_via(self.m1_stack, (self.wc_go_off[i].lx()+ self.co_xshift,
+                                          self.go_off_y-i*self.m_pitch("m1")-self.via_shift("v1")))
 
-             self.add_path("poly",[self.dr_go_off[i].uc(),(self.dr_go_off[i].uc().x, 0)])
-             self.add_contact(self.poly_stack,(self.dr_go_off[i].ll().x,0))
+             self.add_path("poly",[self.dr_go_off[i].uc(),(self.dr_go_off[i].uc().x, -(2*i+1)*self.m_pitch("m1"))])
+             self.add_contact(self.poly_stack,(self.dr_go_off[i].lx(),-(2*i+1)*self.m_pitch("m1")-self.via_shift("co")))
 
-             x_off = self.dr_go_off[i].ll().x+0.5*contact.poly.width
-             self.add_path("metal1",[(x_off,0),(x_off, self.go_off_y-i*self.m_pitch("m1"))])
+             x_off = self.dr_go_off[i].lx()+0.5*contact.poly.width
+             self.add_path("metal1",[(x_off,-(2*i+1)*self.m_pitch("m1")),(x_off, self.go_off_y-i*self.m_pitch("m1"))])
               
-             self.add_via(self.m1_stack, (self.dr_go_off[i].uc().x,
-                                          self.go_off_y-i*self.m_pitch("m1")), rotate=90)
+             self.add_via(self.m1_stack, (self.dr_go_off[i].lx()+ self.co_xshift,
+                                          self.go_off_y-i*self.m_pitch("m1")-self.via_shift("v1")))
 
     def add_output_ack_pin(self):
         """ Adds the output ack pin """
         
         #ack-gate output connection
-        x_off=self.ack_inst.ll().x-4*self.m_pitch("m1")
+        x_off=self.ack_inst.lx()-4*self.m_pitch("m1")
         self.add_layout_pin(text="ack", 
                             layer=self.m1_pin_layer, 
                             offset=(x_off-0.5*self.m1_width,self.min_off_y), 
@@ -1327,7 +1351,7 @@ class bank_control_logic(design.design):
         self.add_wire(self.m1_rev_stack, [self.ack_out_off, 
                                          (x_off, self.ack_out_off.y), (x_off, self.min_off_y)])
         
-        self.add_via(self.m1_stack, (x_off-0.5*self.m1_width, self.ack_off_y))
+        self.add_via(self.m1_stack, (x_off-0.5*self.m1_width, self.ack_off_y - self.via_shift("v1")))
         self.add_rect(layer="metal2", 
                       offset=(self.u_ack_in_off.uc().x,self.ack_off_y), 
                       width=x_off-self.u_ack_in_off.uc().x,
@@ -1335,10 +1359,10 @@ class bank_control_logic(design.design):
 
         #u-gate ack input connection
         self.add_path("poly",[self.u_ack_in_off.uc(),(self.u_ack_in_off.uc().x,-self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack, (self.u_ack_in_off.ll().x,-self.m_pitch("m1")))
-        x_off = self.u_ack_in_off.ll().x+0.5*contact.poly.width
+        self.add_contact(self.poly_stack, (self.u_ack_in_off.lx(),-self.m_pitch("m1")-self.via_shift("co")))
+        x_off = self.u_ack_in_off.lx()+0.5*contact.poly.width
         self.add_path("metal1", [(x_off,-self.m_pitch("m1")), (x_off, self.ack_off_y)])
-        self.add_via(self.m1_stack, (self.u_ack_in_off.ll().x, self.ack_off_y))
+        self.add_via(self.m1_stack, (self.u_ack_in_off.lx(), self.ack_off_y - self.via_shift("v1")))
         
 
     def add_output_wen_pin(self):
@@ -1355,13 +1379,13 @@ class bank_control_logic(design.design):
                             height=contact.m1m2.width)
 
         # wen-gate output connection
-        self.add_via(self.m1_stack, (self.wen_out_off.ur().x,self.wen_off_y), rotate=90)
+        self.add_via(self.m1_stack, (self.wen_out_off.rx()+ self.via_shift("v1"),self.wen_off_y), rotate=90)
         self.add_path("metal1",[self.wen_out_off.uc(), (self.wen_out_off.uc().x,self.wen_off_y)])
 
     def add_output_wack_pin(self):
         """ Adds the output wack pin """
         # wack-gate output connection
-        x_off = self.wack_inst.lr().x+3*self.m_pitch("m1")
+        x_off = self.wack_inst.rx()+3*self.m_pitch("m1")
         self.add_layout_pin(text="wack", 
                             layer=self.m1_pin_layer, 
                             offset=(x_off-0.5*self.m1_width,self.min_off_y), 
@@ -1370,31 +1394,31 @@ class bank_control_logic(design.design):
 
         self.add_wire(self.m1_rev_stack,
                       [self.wack_out_off, (x_off,self.wack_out_off.y), (x_off,self.min_off_y)])
-        self.add_via(self.m1_stack, (x_off,self.wack_off_y))
+        self.add_via(self.m1_stack, (x_off-contact.m1m2.width,self.wack_off_y - self.via_shift("v1")))
         
         # ack-gate wack connection
         self.add_rect(layer="metal2", 
-                      offset=(self.ack_wack_in_off1.uc().x, self.wack_off_y), 
+                      offset=(self.ack_wack_in_off1.lc().x, self.wack_off_y), 
                       width=x_off-self.ack_wack_in_off1.uc().x,
                       height = contact.m1m2.width)
         
         self.add_path("poly",[self.ack_wack_in_off1.uc(), (self.ack_wack_in_off1.uc().x,0)])
-        self.add_contact(self.poly_stack, (self.ack_wack_in_off1.ll().x,0))
-        self.add_path("metal1",[(self.ack_wack_in_off1.ll().x+0.5*contact.poly.width,0),
-                                (self.ack_wack_in_off1.ll().x+0.5*contact.poly.width,self.wack_off_y)])
-        self.add_via(self.m1_stack, (self.ack_wack_in_off1.ll().x,self.wack_off_y))
+        self.add_contact(self.poly_stack, (self.ack_wack_in_off1.rx()-contact.poly.width,0-self.via_shift("co")))
+        self.add_path("metal1",[(self.ack_wack_in_off1.rx()-contact.poly.width+0.5*contact.poly.width,0),
+                                (self.ack_wack_in_off1.rx()-contact.poly.width+0.5*contact.poly.width,self.wack_off_y)])
+        self.add_via(self.m1_stack, (self.ack_wack_in_off1.rx()-contact.poly.width, self.wack_off_y - self.via_shift("v1")))
         
         self.add_path("poly",[self.ack_wack_in_off2.uc(), 
-                             (self.ack_wack_in_off2.uc().x, self.ack_inst.ul().y)])
+                             (self.ack_wack_in_off2.uc().x, self.ack_inst.uy())])
         self.add_contact(self.poly_stack, 
-                         (self.ack_wack_in_off2.ll().x, self.ack_inst.ul().y-contact.poly.height))
-        self.add_via(self.m1_stack, (self.ack_wack_in_off2.ll().x, 
-                                     self.ack_inst.ul().y-contact.m1m2.height))
-        pos1= (self.ack_wack_in_off2.ll().x, self.ack_inst.ul().y-0.5*self.m2_width)
-        pos2= (self.ack_inst.lr().x+self.m_pitch("m1"), pos1[1])
+                         (self.ack_wack_in_off2.lx()-self.via_co_shift, self.ack_inst.uy()-contact.poly.height+self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.ack_wack_in_off2.lx(), 
+                                     self.ack_inst.uy()-contact.m1m2.height))
+        pos1= (self.ack_wack_in_off2.lx(), self.ack_inst.uy()-0.5*self.m2_width)
+        pos2= (self.ack_inst.rx()+self.m_pitch("m1"), pos1[1])
         pos3= (pos2[0], self.wack_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0], self.wack_off_y))
+        self.add_via(self.m1_stack, (pos2[0], self.wack_off_y - self.via_shift("v1")))
 
     def add_output_pchg_pin(self):
         """ Adds the output pchg pin """
@@ -1412,81 +1436,81 @@ class bank_control_logic(design.design):
         # Add u-gate pchg input 
         pchg_nor3_off=vector(self.pchg_inst.get_pin("Z").lc().x, self.pchg_inst.get_pin("Z").uc().y)
         self.add_path("poly",[self.u_pre_pchg_in_off.uc(), (self.u_pre_pchg_in_off.uc().x,0)])
-        self.add_contact(self.poly_stack, (self.u_pre_pchg_in_off.ll().x, 0))
-        self.add_via(self.m1_stack, (self.u_pre_pchg_in_off.ll().x, 0))
+        self.add_contact(self.poly_stack, (self.u_pre_pchg_in_off.lx()-self.via_co_shift+self.co_xshift, 0-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.u_pre_pchg_in_off.lx()+self.co_xshift, 0))
         
-        pos1= (self.u_pre_pchg_in_off.ll().x, 0.5*self.m2_width)
-        pos2= (self.u_inst.ll().x-self.m_pitch("m1"), pos1[1])
-        pos3= (pos2[0], pchg_nor3_off.y)
-        pos4= (pchg_nor3_off.x+self.m1_width, pos3[1])
+        pos1= (self.u_pre_pchg_in_off.rx(), 0.5*self.m2_width)
+        pos2= (self.u_inst.lx()-self.m_pitch("m1"), pos1[1])
+        pos3= (pos2[0], pchg_nor3_off.y-contact.m1m2.width)
+        pos4= (pchg_nor3_off.x+self.m1_width-self.via_shift("v1"), pos3[1])
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3, pos4])
         self.add_via(self.m1_stack,(pos4[0]+contact.m1m2.height,pos3[1]-contact.m1m2.width),rotate=90)
         
         #Route the pchg rail
-        self.add_via(self.m1_stack, (self.pchg_off.lr().x, self.pchg_off_y), rotate=90)
+        self.add_via(self.m1_stack, (self.pchg_off.rx()+ self.via_shift("v1"), self.pchg_off_y), rotate=90)
         self.add_path("metal1",[self.pchg_off.uc(), (self.pchg_off.uc().x,self.pchg_off_y)])
 
         # ack-gate pchg-input connection
         self.add_path("poly",[self.ack_pchg_in_off.uc(),
-                             (self.ack_pchg_in_off.uc().x,-self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack, (self.ack_pchg_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_via(self.m1_stack, (self.ack_pchg_in_off.ll().x, -self.m_pitch("m1")))
+                             (self.ack_pchg_in_off.uc().x,2*contact.poly.height)])
+        self.add_contact(self.poly_stack, (self.ack_pchg_in_off.rx()-contact.poly.width-self.via_co_shift, 2*contact.poly.height-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.ack_pchg_in_off.rx()-contact.poly.width+0.5*contact.m1m2.width, 2*contact.poly.height-self.via_shift("co")), rotate=90)
 
         
-        pos1= (self.ack_pchg_in_off.uc().x, -self.m_pitch("m1")+0.5*self.m2_width)
-        pos2= (self.ack_inst.ll().x-3*self.m_pitch("m1"), pos1[1])
+        pos1= (self.ack_pchg_in_off.uc().x, 2*contact.poly.height+0.5*self.m2_width-self.via_shift("co"))
+        pos2= (self.ack_inst.lx()-2*self.m_pitch("m1"), pos1[1])
         pos3= (pos2[0], self.pchg_off_y)
         self.add_wire(self.m1_rev_stack,[pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]+0.5*self.m1_width, self.pchg_off_y), rotate=90)
+        self.add_via(self.m1_stack, (pos2[0]+0.5*self.m1_width+ self.via_shift("v1"), self.pchg_off_y), rotate=90)
         
         # decoder_enable_gate pchg-input connection
-        self.add_via(self.m1_stack, (self.dec_en_in_off.ur().x, self.pchg_off_y), rotate=90)
+        self.add_via(self.m1_stack, (self.dec_en_in_off.rx()+ self.via_shift("v1"), self.pchg_off_y), rotate=90)
         self.add_path("metal1",[self.dec_en_in_off.uc(),(self.dec_en_in_off.uc().x,self.pchg_off_y)])
 
         if self.num_subanks > 1:
             # write_complete-gate pchg-input connection
             self.add_path("poly",[self.WC_pchg_off.uc(),
-                                 (self.WC_pchg_off.uc().x,self.wc_inst.ul().y-contact.poly.height)])
+                                 (self.WC_pchg_off.uc().x,self.wc_inst.uy()-contact.poly.height)])
             self.add_contact(self.poly_stack, 
-                             (self.WC_pchg_off.ur().x,self.wc_inst.ul().y-2*contact.poly.height))
-            self.add_via(self.m1_stack, (self.WC_pchg_off.ur().x, 
-                                         self.wc_inst.ul().y-2*contact.poly.height))
+                             (self.WC_pchg_off.rx()-self.co_xshift,self.wc_inst.uy()-2*contact.poly.height+self.via_shift("co")))
+            self.add_via(self.m1_stack, (self.WC_pchg_off.rx(), 
+                                         self.wc_inst.uy()-2*contact.poly.height))
 
-            self.add_wire(self.m1_rev_stack, [(self.WC_pchg_off.ur().x,
-                          self.wc_inst.ul().y-contact.poly.height-0.5*self.m2_width), 
-                          (self.wc_inst.ll().x-2*self.m_pitch("m1"),
-                          self.wc_inst.ul().y-contact.poly.height-0.5*self.m2_width),
-                          (self.wc_inst.ll().x-2*self.m_pitch("m1"),self.pchg_off_y)])
-            self.add_via(self.m1_stack, (self.wc_inst.ll().x-2*self.m_pitch("m1")+0.5*self.m1_width,
+            self.add_wire(self.m1_rev_stack, [(self.WC_pchg_off.rx(),
+                          self.wc_inst.uy()-contact.poly.height-0.5*self.m2_width), 
+                          (self.wc_inst.lx()-2*self.m_pitch("m1"),
+                          self.wc_inst.uy()-contact.poly.height-0.5*self.m2_width),
+                          (self.wc_inst.lx()-2*self.m_pitch("m1"),self.pchg_off_y)])
+            self.add_via(self.m1_stack, (self.wc_inst.lx()-2*self.m_pitch("m1")+0.5*self.m1_width+ self.via_shift("v1"),
                                           self.pchg_off_y), rotate=90)
             
             # Data_ready-gate pchg-input connection
             self.add_path("poly",[self.DR_pchg_off.uc(),(self.DR_pchg_off.uc().x,
-                                  self.dr_inst.ul().y-contact.poly.height)])
-            off= (self.DR_pchg_off.lr().x,self.dr_inst.ul().y-2*contact.poly.height)
-            self.add_contact(self.poly_stack, off)
+                                  self.dr_inst.uy()-contact.poly.height)])
+            off= vector(self.DR_pchg_off.rx(),self.dr_inst.uy()-2*contact.poly.height)
+            self.add_contact(self.poly_stack, (off.x-self.co_xshift, off.y+self.via_shift("co")))
             self.add_via(self.m1_stack, off)
 
-            pos1= (self.DR_pchg_off.lr().x, self.dr_inst.ul().y-contact.poly.height-0.5*self.m2_width)
-            pos2= (self.dr_inst.lr().x+self.m_pitch("m1"), pos1[1])
+            pos1= (self.DR_pchg_off.rx(), self.dr_inst.uy()-contact.poly.height-0.5*self.m2_width)
+            pos2= (self.dr_inst.rx()+self.m_pitch("m1"), pos1[1])
             pos3= (pos2[0], self.pchg_off_y)
             self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-            self.add_via(self.m1_stack, (pos2[0]+0.5*self.m1_width,self.pchg_off_y), rotate=90)
+            self.add_via(self.m1_stack, (pos2[0]+0.5*self.m1_width +self.via_shift("v1"),self.pchg_off_y), rotate=90)
 
     def add_output_rack_pin(self):
         """ Adds the input rack pin """
         
         # rack-gate output connection
-        x_off = self.rack_inst.lr().x+2*self.m_pitch("m1")-0.5*self.m1_width
+        x_off = self.rack_inst.rx()+2*self.m_pitch("m1")-0.5*self.m1_width
         self.add_layout_pin(text="rack", 
                             layer=self.m1_pin_layer, 
                             offset=(x_off, self.min_off_y), 
                             width=self.m1_width)
-        self.add_via(self.m1_stack, (x_off,self.rack_off_y))
+        self.add_via(self.m1_stack, (x_off,self.rack_off_y - self.via_shift("v1")))
         self.add_wire(self.m1_rev_stack,
                       [self.rack_out_off,
-                      (self.rack_inst.lr().x+2*self.m_pitch("m1"),self.rack_out_off.y), 
-                      (self.rack_inst.lr().x+2*self.m_pitch("m1"),self.min_off_y)])
+                      (self.rack_inst.rx()+2*self.m_pitch("m1"),self.rack_out_off.y), 
+                      (self.rack_inst.rx()+2*self.m_pitch("m1"),self.min_off_y)])
 
         # wen-gate rack-input connection
         self.add_rect(layer="metal2",
@@ -1495,42 +1519,43 @@ class bank_control_logic(design.design):
                       height = contact.m1m2.width)
         
         pos1= self.wen_rack_in_off.uc()
-        pos2=(pos1[0], self.wen_rack_in_off.uc().y-0.5*contact.active.height-self.well_enclose_active)
+        pos2=(pos1[0], self.wen_rack_in_off.uc().y-contact.active.height-self.well_enclose_active-self.poly_space)
         pos3= (self.wen_rack_in_off.uc().x+self.poly_to_active,pos2[1])
-        pos4= (pos3[0],0)
+        pos4= (pos3[0],-self.m_pitch("m1"))
         self.add_path("poly",[pos1, pos2, pos3, pos4])
         
-        self.add_contact(self.poly_stack, (self.wen_rack_in_off.ll().x+self.poly_to_active,0))
+        self.add_contact(self.poly_stack, (self.wen_rack_in_off.rx()+self.poly_to_active-contact.poly.width,
+                                           -self.m_pitch("m1")-self.via_shift("co")))
         
-        x_off =  self.wen_rack_in_off.ll().x + self.poly_to_active + 0.5*contact.poly.width
+        x_off =  self.wen_rack_in_off.rx() + self.poly_to_active - 0.5*contact.poly.width
         self.add_path("metal1", [(x_off, 0), (x_off, self.rack_off_y)])
         
-        self.add_via(self.m1_stack,(x_off-0.5*contact.poly.width, self.rack_off_y))
+        self.add_via(self.m1_stack,(x_off-0.5*contact.poly.width, self.rack_off_y - self.via_shift("v1")))
 
         # ack-gate rack-input connection
-        self.add_path("poly",[self.ack_rack_in_off.uc(), (self.ack_rack_in_off.uc().x, 0)])
-        self.add_contact(self.poly_stack,(self.ack_rack_in_off.ll().x, 0))
-        self.add_path("metal1",[(self.ack_rack_in_off.ll().x+0.5*contact.poly.width, 0), 
-                      (self.ack_rack_in_off.ll().x+0.5*contact.poly.width,self.rack_off_y)])
-        self.add_via(self.m1_stack, (self.ack_rack_in_off.ll().x,self.rack_off_y))
+        self.add_path("poly",[self.ack_rack_in_off.uc(), (self.ack_rack_in_off.uc().x, -self.m_pitch("m1"))])
+        self.add_contact(self.poly_stack,(self.ack_rack_in_off.rx()-contact.poly.width, -self.m_pitch("m1")-self.via_shift("co")))
+        self.add_path("metal1",[(self.ack_rack_in_off.rx()-contact.poly.width+0.5*contact.poly.width, -self.m_pitch("m1")), 
+                                (self.ack_rack_in_off.rx()-contact.poly.width+0.5*contact.poly.width, self.rack_off_y)])
+        self.add_via(self.m1_stack, (self.ack_rack_in_off.rx()-contact.poly.width,self.rack_off_y - self.via_shift("v1")))
 
 
     def add_output_dec_en_pin(self):
         """ Adds the output decoder_enable pin """
 
         self.add_rect(layer="metal2", 
-                      offset=(self.dec_en_out_off.ul().x, self.dec_en_off_y), 
+                      offset=(self.dec_en_out_off.lx(), self.dec_en_off_y), 
                       width=self.width-self.dec_en_out_off.uc().x-self.m_pitch("m1"),
                       height=contact.m1m2.width)
         self.add_layout_pin(text="decoder_enable", 
                             layer=self.m2_pin_layer, 
-                            offset=(self.dec_en_out_off.ul().x, self.dec_en_off_y), 
+                            offset=(self.dec_en_out_off.lx(), self.dec_en_off_y), 
                             width=contact.m1m2.width,
                             height=contact.m1m2.width)
 
         self.add_path("metal1",[self.dec_en_out_off.uc(),
                                (self.dec_en_out_off.uc().x,self.dec_en_off_y)])
-        self.add_via(self.m1_stack, (self.dec_en_out_off.ul().x,self.dec_en_off_y))
+        self.add_via(self.m1_stack, (self.dec_en_out_off.lx(),self.dec_en_off_y - self.via_shift("v1")))
     
     def add_U_routing(self):
         """ Routes the u signal """
@@ -1539,60 +1564,65 @@ class bank_control_logic(design.design):
                       offset=(-self.m_pitch("m1"), self.U_off_y), 
                       width=self.pin_width, 
                       height = contact.m1m2.width)
-        self.add_via(self.m1_stack, (self.u_out_off.uc().x-0.5*contact.m1m2.width,self.U_off_y))
+        self.add_via(self.m1_stack, (self.u_out_off.uc().x-0.5*contact.m1m2.width,self.U_off_y - self.via_shift("v1")))
         self.add_path("metal1",[self.u_out_off.uc(), (self.u_out_off.uc().x,self.U_off_y)])
         
         # wen-gate u-input connection
-        self.add_path("poly",[self.wen_u_in_off.uc(),(self.wen_u_in_off.uc().x,-self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack, (self.wen_u_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_via(self.m1_stack, (self.wen_u_in_off.ll().x, -self.m_pitch("m1")))
+        pos1=self.wen_u_in_off.uc()
+        pos2=(pos1[0], pos1[1]-contact.active.height-self.well_enclose_active)
+        pos3= (pos1[0]+self.poly_to_active, pos2[1])
+        pos4= (pos3[0], -self.m_pitch("m1"))
+        self.add_path("poly",[pos1, pos2, pos3, pos4])
+        self.add_contact(self.poly_stack, (self.wen_u_in_off.lx()+self.poly_to_active-self.via_co_shift+self.co_xshift, 
+                                           -self.m_pitch("m1")-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.wen_u_in_off.lx()+self.poly_to_active+self.co_xshift, -self.m_pitch("m1")))
         
-        pos1= (self.wen_u_in_off.uc().x, -self.m_pitch("m1")+0.5*self.m2_width)
-        pos2= (self.wen_inst.ll().x-self.m_pitch("m1"),pos1[1])
+        pos1= (self.wen_u_in_off.uc().x+self.poly_to_active, -self.m_pitch("m1")+0.5*self.m2_width)
+        pos2= (self.wen_inst.lx()-self.m_pitch("m1"),pos1[1])
         pos3= (pos2[0], self.U_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m2_width, self.U_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m2_width, self.U_off_y - self.via_shift("v1")))
         
         # sen-gate u-input connection
         pos1 = self.sen_u_in_off.uc()
-        pos2= (pos1[0], self.sen_u_in_off.uc().y-0.5*contact.active.height-self.well_enclose_active)
+        pos2= (pos1[0], self.sen_u_in_off.uc().y-contact.active.height-self.well_enclose_active)
         pos3= (self.sen_u_in_off.uc().x-self.poly_to_active, pos2[1])
         pos4= (pos3[0], -self.m_pitch("m1"))
         self.add_path("poly",[pos1, pos2, pos3, pos4])
         
-        x_off = self.sen_u_in_off.ll().x-self.poly_to_active
-        self.add_contact(self.poly_stack, (x_off, -self.m_pitch("m1")))
+        x_off = self.sen_u_in_off.lx()-self.poly_to_active
+        self.add_contact(self.poly_stack, (x_off-self.via_co_shift, -self.m_pitch("m1")-self.via_shift("co")))
         self.add_via(self.m1_stack, (x_off, -self.m_pitch("m1")))
         
-        pos1= (self.sen_u_in_off.ll().x-self.poly_to_active, -self.m_pitch("m1")+0.5*self.m2_width)
-        pos2= (self.sen_inst.lr().x+self.m_pitch("m1"), pos1[1])
+        pos1= (self.sen_u_in_off.lx()-self.poly_to_active, -self.m_pitch("m1")+0.5*self.m2_width)
+        pos2= (self.sen_inst.rx()+self.m_pitch("m1"), pos1[1])
         pos3= (pos2[0], self.U_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width,self.U_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width,self.U_off_y - self.via_shift("v1")))
         
         # rack-gate u-input connection
         self.add_path("poly",[self.rack_u_in_off.uc(),
-                             (self.rack_u_in_off.uc().x, -self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack, (self.rack_u_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_via(self.m1_stack, (self.rack_u_in_off.ll().x, -self.m_pitch("m1")))
+                             (self.rack_u_in_off.uc().x, 2*contact.poly.height)])
+        self.add_contact(self.poly_stack, (self.rack_u_in_off.lx()-self.via_co_shift+self.co_xshift, 2*contact.poly.height-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.rack_u_in_off.lx()+self.co_xshift, 2*contact.poly.height))
 
-        pos1=(self.rack_u_in_off.uc().x, -self.m_pitch("m1")+0.5*self.m2_width)
-        pos2=(self.rack_inst.lr().x+self.m_pitch("m1"), pos1[1])
+        pos1=(self.rack_u_in_off.uc().x, 2*contact.poly.height+0.5*self.m2_width)
+        pos2=(self.rack_inst.rx()+self.m_pitch("m1"), pos1[1])
         pos3=(pos2[0], self.U_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.U_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.U_off_y - self.via_shift("v1")))
         
         # wack-gate u-input connection
         self.add_path("poly",[self.wack_u_in_off.uc(),
                              (self.wack_u_in_off.uc().x,-self.m_pitch("m1"))])
-        self.add_contact(self.poly_stack,(self.wack_u_in_off.ll().x, -self.m_pitch("m1")))
-        self.add_via(self.m1_stack, (self.wack_u_in_off.ll().x, -self.m_pitch("m1")))
+        self.add_contact(self.poly_stack,(self.wack_u_in_off.lx()-self.via_co_shift, -self.m_pitch("m1")-self.via_shift("co")))
+        self.add_via(self.m1_stack, (self.wack_u_in_off.lx(), -self.m_pitch("m1")))
 
         pos1= (self.wack_u_in_off.uc().x,-self.m_pitch("m1")+0.5*self.m2_width)
-        pos2= (self.wack_inst.ll().x-self.m_pitch("m1"),pos1[1])
+        pos2= (self.wack_inst.lx()-self.m_pitch("m1"),pos1[1])
         pos3= (pos2[0], self.U_off_y)
         self.add_wire(self.m1_rev_stack, [pos1, pos2, pos3])
-        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.U_off_y))
+        self.add_via(self.m1_stack, (pos2[0]-0.5*self.m1_width, self.U_off_y - self.via_shift("v1")))
  
     def add_output_sen_pin(self):
         """ Adds the output sen pin """
@@ -1611,7 +1641,7 @@ class bank_control_logic(design.design):
         self.add_wire(self.m1_rev_stack,
                       [(self.rblk_out_off.x-self.m1_width-contact.m1m2.width, self.rblk_out_off.y), 
                       (x_off, self.rblk_out_off.y), (x_off, self.sen_off_y)])
-        self.add_via(self.m1_stack, (x_off-0.5*self.m1_width, self.sen_off_y), rotate=90)
+        self.add_via(self.m1_stack, (x_off-0.5*self.m1_width +self.via_shift("v1"), self.sen_off_y), rotate=90)
 
     def add_rbl_routing(self):
         """ Routes the rbl input, output and power signals """
@@ -1648,39 +1678,45 @@ class bank_control_logic(design.design):
         self.add_wire(self.m1_rev_stack,[vdd_0.lc(),
                      (vdd_0.lc().x+2*self.m_pitch("m1"), vdd_0.lc().y),
                      (vdd_0.lc().x+2*self.m_pitch("m1"), vdd_1.lc().y),
-                     vdd_1.lc(), (self.pin_width, vdd_1.lc().y),(self.pin_width, self.vdd_off_y)])
-        self.add_via(self.m1_stack, (vdd_0.lc().x+contact.m1m2.width, vdd_0.ll().y))
-        self.add_via(self.m1_stack, (vdd_1.lc().x+contact.m1m2.width, vdd_1.ll().y))
-        self.add_via(self.m1_stack, (self.pin_width-0.5*self.m1_width, self.vdd_off_y))
+                     vdd_1.lc(), (self.pin_width, vdd_1.lc().y),(self.pin_width, self.vdd_off_y - self.via_shift("v1"))])
+        self.add_via(self.m1_stack, (vdd_0.lc().x+contact.m1m2.width, vdd_0.by()-self.via_shift("v1")))
+        self.add_via(self.m1_stack, (vdd_1.lc().x+contact.m1m2.width, vdd_1.by()-self.via_shift("v1")))
+        self.add_via(self.m1_stack, (self.pin_width-0.5*self.m1_width, self.vdd_off_y - self.via_shift("v1")))
 
         #gnd connection of rbl
         gnd_0= self.rbl.get_pin("gnd")
         x_off= self.pin_width+self.m_pitch("m1")
         self.add_wire(self.m1_rev_stack,[gnd_0.lc(),(x_off,gnd_0.lc().y),(x_off,self.gnd_off_y)])
-        self.add_via(self.m1_stack,(x_off-0.5*self.m1_width,self.gnd_off_y))
-        self.add_via(self.m1_stack,(gnd_0.lc().x+contact.m1m2.width, gnd_0.ll().y))
+        self.add_via(self.m1_stack,(x_off-0.5*self.m1_width,self.gnd_off_y - self.via_shift("v1")))
+        self.add_via(self.m1_stack,(gnd_0.lc().x+contact.m1m2.width, gnd_0.by()-self.via_shift("v1")))
                 
         gates_list = [self.rst_inv_inst, self.pchg_inst, self.u_inst, self.wen_inst, self.sen_inst, 
                       self.ack_inst, self.rack_inv_inst, self.wack_inv_inst, self.dec_en_inst]
         if self.num_subanks > 1:
             gates_list.extend([self.wc_inst, self.dr_inst])
         if self.two_level_bank:
-            gates_list.extend([self.rreq_mrg_inv2_inst])
+            gates_list.extend([self.rreq_mrg_inv1_inst])
         for inst in gates_list:
             for gnd_pin in inst.get_pins("gnd"):
                 self.add_rect(layer="metal1", 
                               offset=gnd_pin.ll(), 
                               width=contact.m1m2.width, 
-                              height=self.gnd_off_y-gnd_pin.ll().y)
-                self.add_via(self.m1_stack, (gnd_pin.uc().x-0.5*contact.m1m2.width, self.gnd_off_y))
+                              height=self.gnd_off_y-gnd_pin.by())
+                self.add_via(self.m1_stack, (gnd_pin.uc().x-0.5*contact.m1m2.width, self.gnd_off_y-self.via_shift("v1")))
 
             for vdd_pin in inst.get_pins("vdd"):
                 self.add_rect(layer="metal1", 
                               offset=vdd_pin.ll(), 
                               width=contact.m1m2.width, 
-                              height=self.vdd_off_y-vdd_pin.ll().y)
-                self.add_via(self.m1_stack, (vdd_pin.uc().x-0.5*contact.m1m2.width, self.vdd_off_y))
-        self.add_rect(layer="nimplant",
-                      offset=(-0.5*contact.m1m2.width,-self.m_pitch("m1")-self.implant_enclose_poly),
-                      width=self.pin_width,
-                      height=self.m_pitch("m1")+self.implant_enclose_poly)
+                              height=self.vdd_off_y-vdd_pin.by())
+                self.add_via(self.m1_stack, (vdd_pin.uc().x-0.5*contact.m1m2.width, self.vdd_off_y-self.via_shift("v1")))
+
+        if info["has_nimplant"]:
+            if self.num_subanks > 1:
+                off = (2*self.num_subanks-1)*self.m_pitch("m1")
+            else:
+                off = 3*self.m_pitch("m1")
+            self.add_rect(layer="nimplant",
+                          offset=(-0.5*contact.m1m2.width,-off-self.implant_enclose_poly),
+                          width=self.pin_width,
+                          height=off+self.implant_enclose_poly)

@@ -2,13 +2,14 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import design
 import debug
 import contact
 import utils
+from tech import drc
 from vector import vector
 from pinv import pinv
 
@@ -46,7 +47,7 @@ class delay_chain(design.design):
         """ Add the inverter logical module """
 
         self.create_inv_list()
-        self.shift = max(self.m1_space, self.implant_space)
+        self.shift = max(self.m1_space, self.implant_space, drc["extra_to_extra"])
         self.width = self.num_invs*self.inv.width + (self.num_invs-1)*self.shift +\
                      self.m1_minarea/contact.m1m2.width
         self.height = self.inv.height
@@ -102,17 +103,15 @@ class delay_chain(design.design):
             self.connect_inst(args=[input, output, "vdd", "gnd"])
             self.add_rect(layer= "metal1", 
                           offset= cur_inv.get_pin("A").ul(),
-                          width=(self.m1_minarea/contact.m1m2.height),
-                          height=-contact.m1m2.height)
-            self.add_rect(layer= "metal1", 
-                          offset= (cur_inv.get_pin("Z").lr().x-(self.m1_minarea/contact.m1m2.height), cur_inv.get_pin("Z").ll().y),
-                          width=(self.m1_minarea/contact.m1m2.height),
-                          height=contact.m1m2.height)
+                          width=(self.m1_minarea/contact.m1m2.first_layer_height),
+                          height=-contact.m1m2.first_layer_height)
     
     def route_inv(self):
         """ Add metal routing for each of the fanout stages """
         
         start_inv = end_inv = 0
+        yshift = self.via_shift("v1")+contact.m1m2.width+0.5*self.m2_width
+        
         for fanout in self.fanout_list:
             # end inv number depends on the fan out number
             
@@ -120,28 +119,29 @@ class delay_chain(design.design):
             start_inv_inst = self.inv_inst_list[start_inv]
 
             # route from output to first load
-            start_inv_pin = start_inv_inst.get_pin("Z").uc()
+            start_inv_pin = start_inv_inst.get_pin("Z")
             load_inst = self.inv_inst_list[start_inv+1]
+            mid_pos=(start_inv_pin.rx()+self.m1_space, start_inv_pin.lc().y)
             load_pin = load_inst.get_pin("A").lc()+vector(contact.m1m2.height, 0)
-            self.add_path("metal1", [start_inv_pin, load_pin])
+            
+            self.add_path("metal1", [start_inv_pin.lc(), mid_pos, load_pin], width=self.m1_space)
             
             next_inv = start_inv+2
             while next_inv <= end_inv:
+                
                 prev_load_inst = self.inv_inst_list[next_inv-1]
                 prev_load_pin = vector(prev_load_inst.get_pin("A").lc().x, 
-                                       prev_load_inst.get_pin("Z").ll().y-\
-                                       contact.m1m2.width-0.5*self.m2_width)
+                                       prev_load_inst.get_pin("Z").by()- yshift)
                 load_inst = self.inv_inst_list[next_inv]
+                
                 load_pin = vector(load_inst.get_pin("A").lc().x+contact.m1m2.height,
-                                  load_inst.get_pin("Z").ll().y-\
-                                  contact.m1m2.width-0.5*self.m2_width)
+                                  load_inst.get_pin("Z").by()- yshift)
                 self.add_path("metal2", [prev_load_pin, load_pin])
                 
-                self.add_via(self.m1_stack,self.inv_inst_list[next_inv-1].get_pin("A").lr()-\
-                             vector(-0.5*contact.m1m2.height, 0.5*contact.m1m2.width), rotate=90)
+                xshift = vector(-contact.m1m2.height, 0.5*contact.m1m2.width)
+                self.add_via(self.m1_stack,self.inv_inst_list[next_inv-1].get_pin("A").ll()-xshift, rotate=90)
                 
-                self.add_via(self.m1_stack, self.inv_inst_list[next_inv].get_pin("A").lr()-\
-                             vector(-0.5*contact.m1m2.height, 0.5*contact.m1m2.width), rotate=90)
+                self.add_via(self.m1_stack, self.inv_inst_list[next_inv].get_pin("A").ll()-xshift, rotate=90)
                 next_inv += 1
 
             # set the start of next one after current end
@@ -186,17 +186,20 @@ class delay_chain(design.design):
 
         # output is Z pin of last inverter
         z_pin = self.inv_inst_list[-1].get_pin("Z")
-        self.add_path("metal2", [(z_pin.lx()-0.5*self.m1_width, z_pin.lc().y),
-                                 (z_pin.lx()-0.5*self.m1_width, 2*contact.m1m2.width),
-                                 (-extra_m1, 2*contact.m1m2.width)])
+        pos1=(z_pin.lx()-0.5*self.m1_width, z_pin.lc().y)
+        pos2=(z_pin.lx()-0.5*self.m1_width, 2*contact.m1m2.width)
+        pos3=(-extra_m1, 2*contact.m1m2.width)
+        self.add_path("metal2", [pos1, pos2, pos3])
 
-        self.add_via(self.m1_stack,(-extra_m1,2*contact.m1m2.width-0.5*contact.m1m2.width),rotate=90)
+       
 
-        out_pin= (-contact.m1m2.height-extra_m1, 2*contact.m1m2.width-0.5*contact.m1m2.width)
+        out_pin= vector(-contact.m1m2.height-extra_m1, 2*contact.m1m2.width-0.5*contact.m1m2.width)
         self.add_rect(layer="metal1",
                       offset=out_pin,
                       width=self.m1_minarea/contact.m1m2.width,
                       height=contact.m1m2.width)
+        
+        self.add_via(self.m1_stack,(-extra_m1,out_pin.y),rotate=90)
         
         self.add_layout_pin(text="out",
                             layer=self.m1_pin_layer,

@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import design
@@ -29,4 +29,5 @@ class bitcell(design.design):
         self.width = bitcell.width
         self.height = bitcell.height
         self.pin_map = bitcell.pin_map
+
         

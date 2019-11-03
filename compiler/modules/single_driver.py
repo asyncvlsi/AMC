@@ -14,7 +14,6 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-
 import design
 import debug
 import utils
@@ -27,7 +26,7 @@ class single_driver(design.design):
     the layout and netlist should be available in the technology library.
     """
 
-    pin_names = ["in0", "in1", "out", "vdd", "gnd"]
+    pin_names = ["in0", "in1", "in2", "in3", "out0", "out1", "out2", "out3", "en", "vdd", "gnd"]
     (width,height) = utils.get_libcell_size("single_driver", GDS["unit"], layer["boundary"])
     pin_map = utils.get_libcell_pins(pin_names, "single_driver", GDS["unit"])
     
