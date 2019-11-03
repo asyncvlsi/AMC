@@ -11,8 +11,9 @@ M8 en_bar en vdd vdd p w=2.4u l=0.6u
 M9 en_bar en gnd gnd n w=1.2u l=0.6u
 M10 en1 en_bar vdd vdd p w=2.4u l=0.6u
 M11 en1 en_bar gnd gnd n w=1.2u l=0.6u
-M12 dout en1 1 gnd n w=2.4u l=0.6u
-M13 1 dout_bar gnd gnd n w=2.4u l=0.6u
-M14 1 dout_bar vdd vdd p w=2.4u l=0.6u  
+M12 dout en 1 gnd n w=2.4u l=0.6u
+M13 dout en_bar 1 vdd p w=2.4u l=0.6u
+M14 1 dout_bar gnd gnd n w=2.4u l=0.6u
+M15 1 dout_bar vdd vdd p w=2.4u l=0.6u  
 .ENDS sense_amp
 
