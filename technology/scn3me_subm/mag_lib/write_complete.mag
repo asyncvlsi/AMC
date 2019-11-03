@@ -1,6 +1,6 @@
 magic
 tech scmos
-timestamp 1551503228
+timestamp 1564448701
 << nwell >>
 rect -2 0 38 46
 << pwell >>
@@ -21,8 +21,9 @@ rect 15 57 20 61
 rect 22 61 23 65
 rect 22 57 27 61
 << pdiffusion >>
-rect 11 36 12 40
-rect 7 32 12 36
+rect 7 39 12 40
+rect 11 35 12 39
+rect 7 32 12 35
 rect 14 36 15 40
 rect 14 32 19 36
 rect 4 20 9 24
@@ -43,7 +44,7 @@ rect 7 61 11 65
 rect 15 61 19 65
 rect 23 61 27 65
 << pdcontact >>
-rect 7 36 11 40
+rect 7 35 11 39
 rect 15 36 19 40
 rect 4 16 8 20
 rect 12 16 16 20
@@ -52,38 +53,35 @@ rect 28 16 32 20
 << psubstratepcontact >>
 rect 28 49 32 53
 << nsubstratencontact >>
-rect 29 33 33 37
+rect 28 33 32 37
 << polysilicon >>
-rect 12 65 14 67
-rect 20 65 22 69
+rect 12 65 14 70
+rect 20 65 22 67
 rect 12 40 14 61
-rect 20 53 22 57
-rect 20 51 27 53
-rect 12 31 14 32
-rect 6 29 14 31
+rect 20 52 22 57
+rect 24 48 27 51
+rect 12 29 14 32
 rect 9 24 11 26
 rect 17 24 19 26
-rect 25 24 27 51
+rect 25 24 27 48
 rect 25 14 27 16
 rect 9 9 11 12
 rect 17 9 19 12
 << polycontact >>
-rect 20 69 24 73
-rect 2 27 6 31
+rect 10 70 14 74
+rect 20 48 24 52
 rect 7 5 11 9
 rect 15 5 19 9
 << metal1 >>
-rect 0 73 34 74
-rect 0 71 20 73
-rect 24 71 34 73
+rect 0 71 10 74
+rect 14 71 34 74
 rect 15 58 19 61
 rect 0 55 34 58
 rect 28 53 32 55
-rect 0 43 34 46
-rect 15 40 19 43
-rect 29 37 32 43
-rect 6 27 7 31
-rect 4 26 7 27
+rect 7 48 20 52
+rect 0 42 34 45
+rect 15 40 19 42
+rect 29 37 32 42
 rect 4 23 24 26
 rect 4 20 8 23
 rect 20 20 24 23
@@ -91,15 +89,16 @@ rect 29 20 32 33
 << m2contact >>
 rect 3 61 7 65
 rect 27 61 31 65
-rect 3 36 7 40
+rect 3 48 7 52
+rect 3 35 7 39
 rect 12 12 16 16
 rect 3 5 7 9
 rect 19 5 23 9
 << metal2 >>
-rect 15 70 18 79
-rect 4 67 18 70
-rect 4 65 7 67
-rect 3 40 7 61
+rect 15 68 18 79
+rect 15 65 31 68
+rect 3 52 7 61
+rect 3 39 7 48
 rect 27 35 31 61
 rect 27 29 32 35
 rect 12 26 32 29
@@ -113,8 +112,8 @@ rect 0 0 34 79
 << labels >>
 rlabel metal2 10 0 10 0 4 bl
 rlabel metal2 20 0 20 0 4 br
-rlabel metal1 0 43 0 43 1 vdd
 rlabel metal1 0 55 0 55 1 gnd
 rlabel metal2 15 79 15 79 4 write_complete
 rlabel metal1 0 71 0 71 1 en
+rlabel metal1 0 42 0 42 1 vdd
 << end >>
