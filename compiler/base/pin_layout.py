@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import debug
@@ -13,7 +13,7 @@ from tech import layer
 class pin_layout:
     """ A class to represent a rectangular design pin. It is limited to a single shape. """
 
-    def __init__(self, name, rect, layer_name_num):
+    def __init__(self, name, rect, layer_name_num, pin_dataType, label_dataType):
         self.name = name
         # repack the rect as a vector, just in case
         if type(rect[0])==vector:
@@ -27,7 +27,9 @@ class pin_layout:
             self.layer = layer.keys()[layer.values().index(layer_name_num)]
         else:
             self.layer=layer_name_num
-        self.layer_num = layer[self.layer]
+        self.pin_dataType=pin_dataType
+        self.label_dataType=label_dataType
+        #self.layer_num = layer[self.layer]
 
     def __str__(self):
         """ override print function output """
@@ -188,14 +190,14 @@ class pin_layout:
         debug.info(4, "writing pin (" + str(self.layer) + "):" 
                    + str(self.width()) + "x" + str(self.height()) + " @ " + str(self.ll()))
         newLayout.addBox(layerNumber=layer[self.layer],
-                         purposeNumber=0,
+                         dataType=self.pin_dataType,
                          offsetInMicrons=self.ll(),
                          width=self.width(),
                          height=self.height(),
                          center=False)
         newLayout.addText(text=self.name,
                           layerNumber=layer[self.layer],
-                          purposeNumber=0,
+                          purposeNumber=self.label_dataType,
                           offsetInMicrons=self.ll(),
                           magnification=GDS["zoom"],
                           rotate=None)

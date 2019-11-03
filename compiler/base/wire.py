@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 from tech import drc
@@ -17,10 +17,12 @@ class wire(path):
     not, it will always go down first. The points are the center of the wire.
     The layer stack is the vertical, contact/via, and horizontal layers, respectively. """
     
-    def __init__(self, obj, layer_stack, position_list):
+    def __init__(self, obj, layer_stack, position_list, vert_width=None, horiz_width=None):
         self.obj = obj
         self.layer_stack = layer_stack
         self.position_list = position_list
+        self.vert_width = vert_width
+        self.horiz_width = horiz_width
         self.pins = [] # used for matching parm lengths
         self.switch_pos_list = []
 
@@ -38,10 +40,17 @@ class wire(path):
         self.via_layer_name = via_layer
 
         self.vert_layer_name = vert_layer
-        self.vert_layer_width = drc["minwidth_{0}".format(vert_layer)]
+        if self.vert_width == None:
+            self.vert_layer_width = drc["minwidth_{0}".format(vert_layer)]
+        else:
+            self.vert_layer_width = self.vert_width
 
         self.horiz_layer_name = horiz_layer
-        self.horiz_layer_width = drc["minwidth_{0}".format(horiz_layer)]
+        if self.horiz_width == None:
+            self.horiz_layer_width = drc["minwidth_{0}".format(horiz_layer)]
+        else:
+            self.horiz_layer_width = self.horiz_width
+
         via_connect = contact(self.layer_stack,
                               (1, 1))
         self.node_to_node = [drc["minwidth_" + str(self.horiz_layer_name)] + via_connect.width,

@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import itertools
@@ -27,7 +27,7 @@ class layout(lef.lef):
     """
 
     def __init__(self, name):
-        lef.lef.__init__(self, ["metal1", "metal2", "metal3"])
+        lef.lef.__init__(self, ["metal1", "metal2", "metal3", "metal4"])
         self.name = name
         self.width = None
         self.height = None
@@ -59,7 +59,21 @@ class layout(lef.lef):
         
         metal_pitch = metal_space + contact_space
         return metal_pitch
+
+
+    def via_shift(self, via):
+        """ These are some DRC constants for co/via shift used in many places in the compiler."""
         
+        import contact
+        if via =="co":
+            contact=contact.poly  
+        if via =="v1":
+            contact=contact.m1m2   
+        if via =="v2":
+            contact=contact.m2m3   
+        
+        shift=0.5*abs(contact.second_layer_height - contact.first_layer_height)
+        return shift
 
     def offset_all_coordinates(self):
         """ This function is called after everything is placed to
@@ -155,53 +169,45 @@ class layout(lef.lef):
                 return inst
         return None
     
-    def add_rect(self, layer, offset, width=0, height=0):
+    def add_rect(self, layer, offset, layer_dataType = 0, width=0, height=0):
         """Adds a rectangle on a given layer,offset with width and height"""
         
-        #if width==0:
-            #width=drc["minwidth_{}".format(layer)]
-        #if height==0:
-            #height=drc["minwidth_{}".format(layer)]
         # negative layers indicate "unused" layers in a given technology
         layer_num = techlayer[layer]
         if layer_num >= 0:
-            self.objs.append(geometry.rectangle(layer_num, offset, width, height))
+            self.objs.append(geometry.rectangle(layer_num, offset, layer_dataType, width, height))
             return self.objs[-1]
         return None
 
-    def add_rect_center(self, layer, offset, width=0, height=0):
+    def add_rect_center(self, layer, offset, layer_dataType = 0, width=0, height=0):
         """Adds a rectangle on a given layer at the center point with width and height"""
         
-        #if width==0:
-            #width=drc["minwidth_{}".format(layer)]
-        #if height==0:
-            #height=drc["minwidth_{}".format(layer)]
         # negative layers indicate "unused" layers in a given technology
         layer_num = techlayer[layer]
         corrected_offset = offset - vector(0.5*width,0.5*height)
         if layer_num >= 0:
-            self.objs.append(geometry.rectangle(layer_num, corrected_offset, width, height))
+            self.objs.append(geometry.rectangle(layer_num, corrected_offset, layer_dataType, width, height))
             return self.objs[-1]
         return None
 
 
-    def add_segment_center(self, layer, start, end):
+    def add_segment_center(self, layer, start, end, layer_dataType = 0):
         """ Add a min-width rectanglular segment using center line on the start to end point """
         minwidth_layer = drc["minwidth_{}".format(layer)]        
         if start.x!=end.x and start.y!=end.y:
             debug.error("Nonrectilinear center rect!",-1)
         elif start.x!=end.x:
             offset = vector(0,0.5*minwidth_layer)
-            return self.add_rect(layer,start-offset,end.x-start.x,minwidth_layer)
+            return self.add_rect(layer,start-offset,layer_dataType, end.x-start.x,minwidth_layer)
         else:
             offset = vector(0.5*minwidth_layer,0)
-            return self.add_rect(layer,start-offset,minwidth_layer,end.y-start.y)
+            return self.add_rect(layer,start-offset,layer_dataType, minwidth_layer,end.y-start.y)
     
     def get_pin(self, text):
         """ Return the pin or list of pins """
         try:
-            if len(self.pin_map[text])>1:
-                debug.warning("Should use a pin iterator since more than one pin {}".format(text))
+            #if len(self.pin_map[text])>1:
+                #debug.warning("Should use a pin iterator since more than one pin {}".format(text))
             # If we have one pin, return it and not the list.
             # Otherwise, should use get_pins()
             return self.pin_map[text][0]
@@ -222,10 +228,15 @@ class layout(lef.lef):
         for pin in pins:
             if new_name=="":
                 new_name = pin.name
-            self.add_layout_pin(new_name, pin.layer, pin.ll(), pin.width(), pin.height())
+            self.add_layout_pin(new_name, pin.layer, pin.ll(),  pin_dataType, label_dataType, pin.width(), pin.height())
 
-    def add_layout_pin_center_segment(self, text, layer, start, end, width=None):
+    def add_layout_pin_center_segment(self, text, layer, start, end,  pin_dataType=None, label_dataType=None, width=None):
         """ Creates a path like pin with center-line convention """
+
+        if pin_dataType==None:
+            pin_dataType=techlayer["pin_dataType"]
+        if label_dataType==None:
+            label_dataType=techlayer["label_dataType"]
 
         debug.check(start.x==end.x or start.y==end.y,"Cannot have a non-manhatten layout pin.")
         
@@ -248,33 +259,41 @@ class layout(lef.lef):
         height = max(minwidth_layer,height)
         width = max(minwidth_layer,width)
         
-        return self.add_layout_pin(text, layer, ll_offset, width, height)
+        return self.add_layout_pin(text, layer, ll_offset,  width, height)
 
-    def add_layout_pin_center_rect(self, text, layer, offset, width=None, height=None):
+    def add_layout_pin_center_rect(self, text, layer, offset, pin_dataType=None, label_dataType=None, width=None, height=None):
         """ Creates a path like pin with center-line convention """
+
         if width==None:
             width=drc["minwidth_{0}".format(layer)]
         if height==None:
             height=drc["minwidth_{0}".format(layer)]
+        if pin_dataType==None:
+            pin_dataType=techlayer["pin_dataType"]
+        if label_dataType==None:
+            label_dataType=techlayer["label_dataType"]
 
         ll_offset = offset - vector(0.5*width,0.5*height)
-
-        return self.add_layout_pin(text, layer, ll_offset, width, height)
+        return self.add_layout_pin(text, layer, ll_offset, pin_dataType, label_dataType, width, height)
 
     
     def remove_layout_pin(self, text):
         """Delete a labeled pin (or all pins of the same name)"""
         self.pin_map[text]=[]
         
-    def add_layout_pin(self, text, layer, offset, width=None, height=None):
+    def add_layout_pin(self, text, layer, offset, pin_dataType=None, label_dataType=None, width=None, height=None):
         """Create a labeled pin """
         
         if width==None:
             width=drc["minwidth_{0}".format(layer)]
         if height==None:
             height=drc["minwidth_{0}".format(layer)]
+        if pin_dataType==None:
+            pin_dataType=techlayer["pin_dataType"]
+        if label_dataType==None:
+            label_dataType=techlayer["label_dataType"]
         
-        new_pin = pin_layout(text, [offset,offset+vector(width,height)], layer)
+        new_pin = pin_layout(text, [offset,offset+vector(width,height)], layer, pin_dataType, label_dataType)
 
         try:
             # Check if there's a duplicate!
@@ -290,31 +309,6 @@ class layout(lef.lef):
 
         return new_pin
 
-    def add_label_pin(self, text, layer, offset, width=None, height=None):
-        """Create a labeled pin WITHOUT the pin data structure. This is not an actual pin 
-           but a named net so that we can add a correspondence point in LVS. """
-        if width==None:
-            width=drc["minwidth_{0}".format(layer)]
-        if height==None:
-            height=drc["minwidth_{0}".format(layer)]
-        self.add_rect(layer=layer,
-                      offset=offset,
-                      width=width,
-                      height=height)
-        self.add_label(text=text,
-                       layer=layer,
-                       offset=offset)
-
-    def add_label(self, text, layer, offset=[0,0],zoom=-1):
-        """Adds a text label on the given layer,offset, and zoom level"""
-        
-        # negative layers indicate "unused" layers in a given technology
-        debug.info(5,"add label " + str(text) + " " + layer + " " + str(offset))
-        layer_num = techlayer[layer]
-        if layer_num >= 0:
-            self.objs.append(geometry.label(text, layer_num, offset, zoom))
-            return self.objs[-1]
-        return None
 
     def add_path(self, layer, coordinates, width=None):
         """Connects a routing path on given layer,coordinates,width."""
@@ -332,17 +326,19 @@ class layout(lef.lef):
                   position_list=coordinates, 
                   width=width)
     
-    def add_wire(self, layers, coordinates):
+    def add_wire(self, layers, coordinates, vert_width=None, horiz_width=None):
         """Connects a routing path on given layer,coordinates,width.
         The layers are the (horizontal, via, vertical). """
         import wire
         # add an instance of our path that breaks down into rectangles and contacts
         wire.wire(obj=self,
                   layer_stack=layers, 
-                  position_list=coordinates)
+                  position_list=coordinates,
+                  vert_width=vert_width,
+                  horiz_width=horiz_width)
 
     def add_contact(self, layers, offset, size=[1,1], mirror="R0", rotate=0, 
-                   implant_type=None, well_type=None):
+                   implant_type=None, well_type=None, add_extra_layer=None):
         """ This is just an alias for a via."""
         return self.add_via(layers=layers,
                             offset=offset,
@@ -350,10 +346,11 @@ class layout(lef.lef):
                             mirror=mirror,
                             rotate=rotate,
                             implant_type=implant_type,
-                            well_type=well_type)
+                            well_type=well_type,
+                            add_extra_layer=add_extra_layer)
 
     def add_contact_center(self, layers, offset, size=[1,1], mirror="R0", rotate=0, 
-                           implant_type=None, well_type=None):
+                           implant_type=None, well_type=None, add_extra_layer=None):
         """ This is just an alias for a via."""
         return self.add_via_center(layers=layers,
                                    offset=offset,
@@ -361,16 +358,18 @@ class layout(lef.lef):
                                    mirror=mirror,
                                    rotate=rotate,
                                    implant_type=implant_type,
-                                   well_type=well_type)      
+                                   well_type=well_type,
+                                   add_extra_layer=add_extra_layer)      
     
     def add_via(self, layers, offset, size=[1,1], mirror="R0", rotate=0, 
-                implant_type=None, well_type=None):
+                implant_type=None, well_type=None, add_extra_layer=None):
         """ Add a three layer via structure. """
         import contact
         via = contact.contact(layer_stack=layers,
                               dimensions=size,
                               implant_type=implant_type,
-                              well_type=well_type)
+                              well_type=well_type,
+                              add_extra_layer=add_extra_layer)
         self.add_mod(via)
         inst=self.add_inst(name=via.name, 
                            mod=via, 
@@ -382,14 +381,15 @@ class layout(lef.lef):
         return inst
 
     def add_via_center(self, layers, offset, size=[1,1], mirror="R0", rotate=0, 
-                       implant_type=None, well_type=None):
+                       implant_type=None, well_type=None, add_extra_layer=None):
         """ Add a three layer via structure by the center coordinate accounting 
             for mirroring and rotation. """
         import contact
         via = contact.contact(layer_stack=layers,
                               dimensions=size,
                               implant_type=implant_type,
-                              well_type=well_type)
+                              well_type=well_type,
+                              add_extra_layer=add_extra_layer)
 
         debug.check(mirror=="R0","Use rotate to rotate vias instead of mirror.")
         
@@ -525,13 +525,13 @@ class layout(lef.lef):
         for pin_name in pin_names:
             pin_list = self.get_pins(pin_name)
             for pin in pin_list:
-                if pin.layer_num==layer_num:
+                if pin.layer==layer_num:
                     blockages += [pin.rect]
 
         return blockages
 
 
-    def create_bus(self, layer, pitch, offset, names, length, vertical=False, make_pins=False):
+    def create_bus(self, layer, pitch, offset, names, length, pin_dataType=None, label_dataType=None, vertical=False, make_pins=False):
         """ Create a horizontal or vertical bus. It can be either just rectangles, or actual
             layout pins. It returns an map of line center line positions indexed by name. """
 
@@ -544,6 +544,11 @@ class layout(lef.lef):
         if layer=="metal3":
              pin_layer = self.m3_pin_layer
         
+        if pin_dataType==None:
+            pin_dataType=techlayer["pin_dataType"]
+        if label_dataType==None:
+            label_dataType=techlayer["label_dataType"]
+        
         line_positions = {}
         if vertical:
             for i in range(len(names)):
@@ -555,6 +560,7 @@ class layout(lef.lef):
                                   height=length)
                     self.add_layout_pin(text=names[i],
                                         layer=pin_layer,
+                                        pin_dataType=pin_dataType,
                                         offset=line_offset,
                                         width=drc["minwidth_{}".format(layer)],
                                         height=drc["minwidth_{}".format(layer)])
@@ -576,6 +582,7 @@ class layout(lef.lef):
 
                     self.add_layout_pin(text=names[i],
                                         layer=pin_layer,
+                                        pin_dataType=pin_dataType,
                                         offset=line_offset,
                                         width=drc["minwidth_{}".format(layer)],
                                         height=drc["minwidth_{}".format(layer)])

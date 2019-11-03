@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 """
@@ -90,12 +90,15 @@ def run_drc(cell_name, gds_name):
 
     # the runset file contains all the options to run calibre
     from tech import drc
-    drc_rules = drc["drc_rules"]
-
     drc_runset = {
-        'drcRulesFile': drc_rules,
+        'cmnCustomFileName': drc["drc_custom_rules"],
+        'cmnCustomFileOverrideValues' : drc["custom_options"],
+        'cmnUseCustomFile': 1,
+        'drcRulesFile': drc["drc_rules"],
         'drcRunDir': OPTS.AMC_temp,
         'drcLayoutPaths': gds_name,
+        'drcExtraLayoutPaths': drc["drcExtraLayoutPaths"],
+        'drcGoldenLayoutPaths': drc["drc_golden"],
         'drcLayoutPrimary': cell_name,
         'drcLayoutSystem': 'GDSII',
         'drcResultsformat': 'ASCII',
@@ -163,6 +166,8 @@ def run_lvs(cell_name, gds_name, sp_name, final_verification=False):
     from tech import drc
     lvs_rules = drc["lvs_rules"]
     lvs_runset = {
+        'cmnCustomFileName':drc["lvs_custom_rules"],
+        'cmnUseCustomFile': 1,
         'lvsRulesFile': lvs_rules,
         'lvsRunDir': OPTS.AMC_temp,
         'lvsLayoutPaths': gds_name,
@@ -182,7 +187,6 @@ def run_lvs(cell_name, gds_name, sp_name, final_verification=False):
         'cmnFDILayerMapFile': drc["layer_map"],
         'cmnFDIUseLayerMap': 1,
         'lvsRecognizeGates': 'NONE'
-        #'cmnVConnectNamesState' : 'ALL', #connects all nets with the same name
     }
 
     # This should be removed for final verification
@@ -249,8 +253,8 @@ def run_lvs(cell_name, gds_name, sp_name, final_verification=False):
 
     test = re.compile("WARNING:")
     extwarnings = filter(test.search, results)
-    for e in extwarnings:
-        debug.warning(e.strip("\n"))
+    #for e in extwarnings:
+        #debug.warning(e.strip("\n"))
 
     # MRG - 9/26/17 - Change this to exclude warnings because of
     # multiple labels on different pins in column mux.

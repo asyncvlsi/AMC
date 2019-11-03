@@ -2,12 +2,13 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
+
 
 import design
 import debug
 import utils
-from tech import drc
+from tech import info, drc, layer
 from vector import vector
 
 
@@ -20,7 +21,7 @@ class contact(design.design):
         This is necessary to import layouts into Magic which requires the select to be in the same GDS
         hierarchy as the contact. """
         
-    def __init__(self, layer_stack, dimensions=[1,1], implant_type=None, well_type=None):
+    def __init__(self, layer_stack, dimensions=[1,1], implant_type=None, well_type=None, add_extra_layer=None):
         if implant_type or well_type:
             name = "{0}_{1}_{2}_{3}x{4}_{5}{6}".format(layer_stack[0],
                                                        layer_stack[1],
@@ -42,7 +43,8 @@ class contact(design.design):
         self.dimensions = dimensions
         self.offset = vector(0,0)
         self.implant_type = implant_type
-        self.well_type = well_type        
+        self.well_type = well_type
+        self.add_extra_layer = add_extra_layer        
         self.pins = [] # used for matching parm lengths
         self.create_layout()
 
@@ -57,10 +59,12 @@ class contact(design.design):
         self.width = max(obj.offset.x + obj.width for obj in self.objs)
 
         # Do not include the select layer in the height/width
-        if self.implant_type and self.well_type:
-            self.create_implant_well_enclosures()
-        elif self.implant_type or self.well_type:
-            debug.error(-1,"Must define both implant and well type or none at all.")
+        if self.implant_type:
+            self.create_implant_enclosures()
+        if self.well_type:
+            self.create_well_enclosures()
+        if self.add_extra_layer:
+            self.create_extra_layer()
 
     def setup_layers(self):
         
@@ -95,11 +99,13 @@ class contact(design.design):
 
         self.first_layer_horizontal_enclosure = max((first_layer_minwidth - self.contact_array_width)/2,
                                                     first_layer_enclosure)
+        #self.first_layer_horizontal_enclosure = first_layer_enclosure
         self.first_layer_vertical_enclosure = max((first_layer_minwidth - self.contact_array_height)/2,
                                                    first_layer_extend)
         
         self.second_layer_horizontal_enclosure = max((second_layer_minwidth - self.contact_array_width)/2,
                                                       second_layer_enclosure)
+        #self.second_layer_horizontal_enclosure = second_layer_enclosure
         self.second_layer_vertical_enclosure = max((second_layer_minwidth - self.contact_array_height)/2,
                                                     second_layer_extend)
         
@@ -153,25 +159,39 @@ class contact(design.design):
                       width=self.second_layer_width,
                       height=self.second_layer_height)
 
-    def create_implant_well_enclosures(self):
-        """ Create the select/well layer only for well contact"""
+    def create_implant_enclosures(self):
+        """ Create the select layer only for well contact"""
         
-        implant_position = self.first_layer_position - 2*[drc["implant_enclosure_body_active"]]
-        implant_width =  self.first_layer_width  + 2*drc["implant_enclosure_body_active"]
-        implant_height = self.first_layer_height + 2*drc["implant_enclosure_body_active"]
+        implant_position = self.first_layer_position - 2*[self.implant_enclose_body_active]
+        implant_width =  self.first_layer_width  + 2*self.implant_enclose_body_active
+        implant_height = self.first_layer_height + 2*self.implant_enclose_body_active
         self.add_rect(layer="{}implant".format(self.implant_type),
                       offset=implant_position,
                       width=implant_width,
                       height=implant_height)
-        well_position = self.first_layer_position - [drc["well_enclosure_active"]]*2
-        well_width =  self.first_layer_width  + 2*drc["well_enclosure_active"]
-        well_height = self.first_layer_height + 2*drc["well_enclosure_active"]
+
+    def create_well_enclosures(self):
+        """ Create the well layer only for well contact"""
+
+        well_position = self.first_layer_position - [self.well_enclose_active]*2
+        well_width =  self.first_layer_width  + 2*self.well_enclose_active
+        well_height = self.first_layer_height + 2*self.well_enclose_active
         self.add_rect(layer="{}well".format(self.well_type),
                       offset=well_position,
                       width=well_width,
                       height=well_height)
         
+    def create_extra_layer(self):
+        """ Create the any extra layer (technology dependent)"""
 
+        extra_position = self.first_layer_position - 2*[self.extra_enclose]
+        extra_width =  self.first_layer_width  + 2*self.extra_enclose
+        extra_height = self.first_layer_height + 2*self.extra_enclose
+        self.add_rect(layer="extra_layer",
+                      layer_dataType = layer["extra_layer_dataType"],
+                      offset=extra_position,
+                      width=extra_width,
+                      height=extra_height)
 
 # This is not instantiated and used for calculations only.
 # These are static 1x1 contacts to reuse in all the design modules.

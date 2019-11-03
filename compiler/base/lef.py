@@ -2,7 +2,8 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
+
 
 import gdsMill
 import tech
@@ -13,11 +14,13 @@ import datetime
 from collections import defaultdict
 
 class lef:
+    
     """ SRAM LEF Class open GDS file, read pins information, obstruction
     and write them to LEF file """
+    
     def __init__(self,layers):
         # LEF db units per micron
-        self.lef_units = 1000
+        self.lef_units = 1
         # These are the layers of the obstructions
         self.lef_layers = layers
 

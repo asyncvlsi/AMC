@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import os
@@ -19,7 +19,6 @@ def ceil(decimal):
     """ Performs a ceiling function on the decimal place specified by the DRC grid. """
     grid = tech.drc["grid"]
     return math.ceil(decimal * 1 / grid) / (1 / grid)
-
 
 def round_to_grid(number):
     """ Rounds an arbitrary number to the grid. """
@@ -98,7 +97,7 @@ def get_libcell_pins(pin_list, name, units):
             (name, layer, boundary)=label
             rect = pin_rect(boundary)
             # this is a list because other cells/designs may have must-connect pins
-            cell[str(pin)].append(pin_layout(pin, rect, layer))
+            cell[str(pin)].append(pin_layout(pin, rect, layer, tech.layer["pin_dataType"], tech.layer["label_dataType"]))
     return cell
 
 

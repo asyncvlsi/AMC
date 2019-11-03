@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 import hierarchy_layout
@@ -71,7 +71,8 @@ class design(hierarchy_spice.spice, hierarchy_layout.layout):
         self.contact_width = drc["minwidth_contact"]
         self.well_space = drc["well_to_well"]
         self.implant_space = drc["implant_to_implant"]
-        self.poly_space = drc["poly_to_poly"]        
+        self.poly_space = drc["poly_to_poly"]
+        self.poly_minarea = drc["minarea_poly"]        
         self.m1_space = drc["metal1_to_metal1"]
         self.m2_space = drc["metal2_to_metal2"]        
         self.m3_space = drc["metal3_to_metal3"]
@@ -79,14 +80,17 @@ class design(hierarchy_spice.spice, hierarchy_layout.layout):
         self.m1_minarea = drc["minarea_metal1"]
         self.m2_minarea = drc["minarea_metal2"]
         self.m3_minarea = drc["minarea_metal3"]
+        self.well_minarea = drc["minarea_well"]
         self.well_enclose_active = drc["well_enclosure_active"]
         self.implant_enclose_active = drc["implant_enclosure_active"]
         self.implant_enclose_body_active = drc["implant_enclosure_body_active"]
         self.implant_enclose_poly = drc["implant_enclosure_poly"]
+        self.metal3_enclosure_via2 = drc["metal3_enclosure_via2"]
         self.active_to_body_active = drc["active_to_body_active"]
         self.active_to_active = drc["active_to_active"]
         self.active_extend_contact = drc["active_extend_contact"]
         self.active_enclose_contact = drc["active_enclosure_contact"]
+        self.active_enclose_gate = drc["active_enclosure_gate"]
         self.poly_to_active = drc["poly_to_active"]
         self.poly_extend_active = drc["poly_extend_active"]
         self.poly_enclose_contact = drc["poly_enclosure_contact"]
@@ -94,6 +98,8 @@ class design(hierarchy_spice.spice, hierarchy_layout.layout):
         self.m1_enclose_contact = drc["metal1_enclosure_contact"]
         self.m1_extend_contact = drc["metal1_extend_contact"]
         self.well_extend_active = drc["well_extend_active"]
+        self.extra_minarea = drc["minarea_extra_layer"]
+        self.extra_enclose = drc["extra_layer_enclosure"]
         
         self.poly_stack=("poly", "contact", "metal1")
         self.m1_stack=("metal1", "via1", "metal2")
@@ -128,6 +134,9 @@ class design(hierarchy_spice.spice, hierarchy_layout.layout):
             self.m4_pin_layer = "metal4"
         else:
             self.m4_pin_layer = "m4pin"
+
+        #self.label_dataType = "label_dataType"
+        #self.pin_dataType = "pin_dataType"
         
     def get_layout_pins(self,inst):
         """ Return a map of pin locations of the instance offset """

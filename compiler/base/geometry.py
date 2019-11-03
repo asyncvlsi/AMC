@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 """ This provides a set of useful generic types for the gdsMill interface. """
@@ -234,7 +234,7 @@ class path(geometry):
         """Writes the path to GDS"""
         debug.info(4, "writing path (" + str(self.layerNumber) +  "): " + self.coordinates)
         newLayout.addPath(layerNumber=self.layerNumber,
-                          purposeNumber=0,
+                          dataType=self.layer_datatype,
                           coordinates=self.coordinates,
                           width=self.path_width)
 
@@ -276,7 +276,7 @@ class label(geometry):
         debug.info(4, "writing label (" + str(self.layerNumber) + "): " + self.text)
         newLayout.addText(text=self.text,
                           layerNumber=self.layerNumber,
-                          purposeNumber=0,
+                          dataType=tech.layer["label_dataType"],
                           offsetInMicrons=self.offset,
                           magnification=self.zoom,
                           rotate=None)
@@ -296,7 +296,7 @@ class label(geometry):
 class rectangle(geometry):
     """Represents a rectangular shape"""
 
-    def __init__(self, layerNumber, offset, width, height):
+    def __init__(self, layerNumber, offset, layer_datatype, width, height):
         """Initializes a rectangular shape for specified layer"""
         geometry.__init__(self)
         self.name = "rect"
@@ -305,6 +305,7 @@ class rectangle(geometry):
         self.size = vector(width, height).snap_to_grid()
         self.width = self.size.x
         self.height = self.size.y
+        self.layer_datatype = layer_datatype 
         self.compute_boundary(offset,"",0)
 
         debug.info(4, "creating rectangle (" + str(self.layerNumber) + "): " 
@@ -324,7 +325,7 @@ class rectangle(geometry):
                    + str(self.width) + "x" + str(self.height) + " @ " + str(self.offset))
         if (self.width!=0 and self.height!=0):
             newLayout.addBox(layerNumber=self.layerNumber,
-                             purposeNumber=0,
+                             dataType=self.layer_datatype,
                              offsetInMicrons=self.offset,
                              width=self.width,
                              height=self.height,
