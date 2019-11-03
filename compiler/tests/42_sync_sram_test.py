@@ -11,20 +11,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
-# Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-""" Run a regresion test on a two-level_SRAM. """
+""" Run a regresion test on a asynchronous sram with synchronous interface. """
 
 import unittest
-from testutils import header,AMC_test
+from testutils import header, AMC_test
 import sys,os
 sys.path.append(os.path.join(sys.path[0],".."))
 import globals
 from globals import OPTS
 import debug
 
-class sram_test(AMC_test):
+class sync_sram_test(AMC_test):
 
     def runTest(self):
         globals.init_AMC("config_20_{0}".format(OPTS.tech_name))
@@ -33,10 +32,9 @@ class sram_test(AMC_test):
         import calibre
         OPTS.check_lvsdrc = False
 
-        import sram
- 
-        debug.info(1, "SRAM Test")
-        
+        import sync_sram
+
+        debug.info(1, "Testing async sram with sync interface")
         """ range of acceptable value:  
             
             word_size in any number greater than 1
@@ -53,17 +51,17 @@ class sram_test(AMC_test):
               means outter_banks are placed vertically and inner_banks are place horizontally
               bank_orientations in [("H", "H"), ("V", "H"), ("H", "V"), ("V", "V")] """ 
 
-        a = sram.sram(word_size=16, words_per_row=4, num_rows=32, 
-                      num_subanks=2, branch_factors=(2,4), 
-                      bank_orientations=("H", "H"), name="sram")
+        a = sync_sram.sync_sram(word_size=16, words_per_row=2, num_rows=64, 
+                                num_subanks=2, branch_factors=(2,4), 
+                                bank_orientations=("H", "H"), name="sync_sram")
         self.local_check(a)
 
-        
+
         # return it back to it's normal state
         OPTS.check_lvsdrc = True
         globals.end_AMC()
         
-# instantiate a copy of the class to actually run the test
+# instantiate a copdsay of the class to actually run the test
 if __name__ == "__main__":
     (OPTS, args) = globals.parse_args()
     del sys.argv[1:]

@@ -14,7 +14,6 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-
 """ Run a regresion test on a bank_control_logic. """
 
 import unittest
@@ -59,7 +58,6 @@ class bank_control_logic_test(AMC_test):
         debug.info(1, "Testing sample for bank_control_logic")
         a = bank_control_logic.bank_control_logic(num_rows=32, num_subanks=4, two_level_bank=False, name="bank_ctrl6")
         self.local_check(a)
-
 
         debug.info(1, "Testing sample for bank_control_logic")
         a = bank_control_logic.bank_control_logic(num_rows=64, num_subanks=8, two_level_bank=True, name="bank_ctrl7")

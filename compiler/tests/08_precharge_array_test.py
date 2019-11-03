@@ -2,7 +2,8 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
+
 
 """ Run a regresion test on a precharge array. """
 
@@ -25,8 +26,8 @@ class precharge_test(AMC_test):
 
         import precharge_array
 
-        debug.info(2, "Checking 3 column precharge")
-        pc = precharge_array.precharge_array(columns=3)
+        debug.info(2, "Checking 4 column precharge")
+        pc = precharge_array.precharge_array(columns=4)
         self.local_check(pc)
 
         # return it back to it's normal state

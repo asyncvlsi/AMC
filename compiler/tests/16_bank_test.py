@@ -44,8 +44,8 @@ class bank_test(AMC_test):
         num_subanks in [1, 2, 4, 8]
         two_level_bank [False, True] : if True split and merge cells will be added
         """ 
-        a = bank.bank(word_size=4, words_per_row=2, num_rows=64, 
-                      num_subanks=4, two_level_bank=True, name="bank")
+        a = bank.bank(word_size=32, words_per_row=1, num_rows=64, 
+                      num_subanks=2, two_level_bank=True, name="bank")
 
         self.local_check(a)
 

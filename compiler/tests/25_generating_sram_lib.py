@@ -14,7 +14,7 @@
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
 
-""" Run a regresion test on a bitcell_driver array. """
+""" Generate the LIB file for an SRAM. """
 
 import unittest
 from testutils import header,AMC_test
@@ -24,28 +24,34 @@ import globals
 from globals import OPTS
 import debug
 
-class driver_test(AMC_test):
+class lib_test(AMC_test):
 
     def runTest(self):
         globals.init_AMC("config_20_{0}".format(OPTS.tech_name))
+
+        # This is a hack to reload the characterizer __init__ with the spice version
+        import characterizer
+        reload(characterizer)
+        from characterizer import lib
+        import sram
+        import tech
+
+        #**** Setup synopsys' HSIM and VCS before running this test ***#
+        debug.info(1, "Testing timing for sample 1bit, 16words SRAM with 1 bank")
+        s = sram.sram(word_size=4, words_per_row=1, num_rows=32, num_subanks=1, 
+                      branch_factors=(1,1), bank_orientations=("H", "H"), name="sram")
+                      
+        tempspice = OPTS.AMC_temp + "sram.sp"
+        s.sp_write(tempspice)
         
-        global calibre
-        import calibre
-        OPTS.check_lvsdrc = False
+        
+        lib.lib(OPTS.AMC_temp, s)
 
-        import single_driver_array
-
-        debug.info(2, "Checking driver")
-        a = single_driver_array.single_driver_array(rows=4)
-        self.local_check(a)
-
-        # return it back to it's normal state
-        OPTS.check_lvsdrc = True
         globals.end_AMC()
         
-# instantiate a copy of the class to actually run the test
-if __name__ == "__main__":
-    (OPTS, args) = globals.parse_args()
-    del sys.argv[1:]
-    header(__file__, OPTS.tech_name)
-    unittest.main()
+# instantiate a copdsay of the class to actually run the test
+#if __name__ == "__main__":
+    #(OPTS, args) = globals.parse_args()
+    #del sys.argv[1:]
+    #header(__file__, OPTS.tech_name)
+    #unittest.main()

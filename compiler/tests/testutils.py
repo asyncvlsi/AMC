@@ -2,8 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
-
+# All rights reserved.
 
 
 import unittest, warnings
@@ -28,6 +27,8 @@ class AMC_test(unittest.TestCase):
             self.assertTrue(calibre.run_drc(w.name, tempgds)==0)
         except:
             self.reset()
+            # removing density and ESD drc errors for unit tests only
+            test=os.listdir(OPTS.AMC_temp)
             self.fail("DRC failed: {}".format(w.name))
     
         if OPTS.purge_temp:
@@ -40,7 +41,7 @@ class AMC_test(unittest.TestCase):
         tempgds = OPTS.AMC_temp + "temp.gds"
         a.sp_write(tempspice)
         a.gds_write(tempgds)
-
+        
         import calibre
         try:
             self.assertTrue(calibre.run_lvs(a.name, tempgds, tempspice, final_verification)==0)
@@ -53,6 +54,7 @@ class AMC_test(unittest.TestCase):
             self.assertTrue(calibre.run_drc(a.name, tempgds)==0)
         except:
             self.reset()
+            test=os.listdir(OPTS.AMC_temp)
             self.fail("DRC failed: {}".format(a.name))
         
         if OPTS.purge_temp:
@@ -97,12 +99,10 @@ def header(filename, technology):
     tst1 = "Running:"
     tst2 = "For:"
     tst3 = "Outputs:"
-    print "\n"
     print " ______________________________________________________________________________ "
     print "|==============================================================================|"
     print "|====" + "AMC: Asynchronous Memory Compiler".center(70) + "====|"
     print "|====" + "".center(70) + "====|"
     print "|====" + (tst1+ " " + filename).center(70) + "====|"
     print "|====" + (tst2+ " " + technology).center(70) + "====|"  
-    print "|====" + (tst3+ " " + OPTS.AMC_temp).center(70) + "====|"
     print "|==============================================================================|"

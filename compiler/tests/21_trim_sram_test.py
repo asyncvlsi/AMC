@@ -2,7 +2,7 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
 
 """ Run a regresion test on a two-level_SRAM. """
@@ -25,8 +25,8 @@ class sram_test(AMC_test):
         from characterizer import trim_spice
  
         debug.info(1, "SRAM Test")
-        a = sram.sram(word_size=16, words_per_row=2, num_rows=64, 
-                      num_subanks=4, branch_factors=(4,4), 
+        a = sram.sram(word_size=16, words_per_row=1, num_rows=64, 
+                      num_subanks=4, branch_factors=(1,4), 
                       bank_orientations=("H", "H"), name="sram")
         
         tempspice = OPTS.AMC_temp + "sram.sp"

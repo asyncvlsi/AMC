@@ -33,11 +33,11 @@ class verilog_test(AMC_test):
         import sram
 
         debug.info(1, "Testing Verilog for a sample sram")
-        s = sram.sram(word_size=2,
+        s = sram.sram(word_size=16,
                       words_per_row=1,
                       num_rows=64,
                       num_subanks=4, 
-                      branch_factors=(1,4),
+                      branch_factors=(2,4),
                       bank_orientations=("H", "H"),
                       name="sram")
 
