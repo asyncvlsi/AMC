@@ -13,6 +13,7 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
+
 import sys
 import datetime
 import getpass
@@ -71,6 +72,7 @@ class sram(design.design):
                                 int(log(self.num_inbanks, 2))
         outbank_addr_size = int(log(self.num_outbanks, 2))
         self.addr_size = self.inbank_addr_size + outbank_addr_size
+        self.via_yshift =  0.5*abs(contact.m1m2.second_layer_height-contact.m1m2.first_layer_height)
 
     def add_pins(self):
         """ Add pins for entire SRAM. """
@@ -217,11 +219,12 @@ class sram(design.design):
         self.route_outbanks()
         
         if self.outbank_orien == "H":
-            self.width = self.inbank_inst[3].ur().x+ self.out_split_mrg_ctrl.height+self.m1_width 
+            self.width = self.inbank_inst[3].ur().x+ self.out_split_mrg_ctrl.height+\
+                         self.m_pitch("m1")*(self.word_size+1) 
             self.height = self.inbank_inst[3].ur().y
         if self.outbank_orien == "V":
             self.width = self.inbank_inst[3].ur().x+ self.out_split_mrg_ctrl.height+ \
-                         self.m1_width+self.m_pitch("m1")*(2*self.word_size+self.inbank_addr_size+1) 
+                         self.m_pitch("m1")*(2*self.word_size+self.inbank_addr_size+4) 
             self.height = self.inbank_inst[3].ur().y
 
     def compute_two_outbank_offsets(self):
@@ -506,26 +509,22 @@ class sram(design.design):
             self.add_layout_pin(text=ctrl_pins[i],
                                 layer = self.inbank_inst.get_pin(ctrl_pins[i]).layer,
                                 offset = self.inbank_inst.get_pin(ctrl_pins[i]).ll(),
-                                width = self.m2_width,
-                                height = self.m2_width)
+                                width = self.m1_width,
+                                height = self.m1_width)
         for i in range(self.addr_size):
             self.add_layout_pin(text="addr[{0}]".format(i),
                                 layer = self.inbank_inst.get_pin("addr[{0}]".format(i)).layer,
                                 offset = self.inbank_inst.get_pin("addr[{0}]".format(i)).ll(),
-                                width = self.m2_width,
-                                height = self.m2_width)
-        if self.num_inbanks ==1:
-            layer = self.m2_pin_layer
-        else:
-            layer = self.m1_pin_layer
+                                width = self.m1_width,
+                                height = self.m1_width)
         for i in range(self.word_size):
             self.add_layout_pin(text="data_in[{0}]".format(i),
-                                layer = layer,
+                                layer = self.m1_pin_layer,
                                 offset = self.inbank_inst.get_pin("din[{0}]".format(i)).ll(),
                                 width = self.m1_width,
                                 height = self.m1_width)
             self.add_layout_pin(text="data_out[{0}]".format(i),
-                                layer = layer,
+                                layer = self.m1_pin_layer,
                                 offset = self.inbank_inst.get_pin("dout[{0}]".format(i)).ll(),
                                 width = self.m1_width,
                                 height = self.m1_width)
@@ -701,7 +700,7 @@ class sram(design.design):
                                   offset=din_off, 
                                   width=self.m2_width, 
                                   height=din_height)
-                    self.add_via(self.m1_stack, offset=din_off)
+                    self.add_via(self.m1_stack, offset=(din_off.x, din_off.y-self.via_yshift))
     
                     if (self.outbank_orien == "H" or self.inbank_orien == "H"): 
                         dout_off = vector(self.inbank_inst[k].get_pin("dout[{0}]".format(i)).ll().x, 
@@ -712,7 +711,7 @@ class sram(design.design):
                                       offset=dout_off, 
                                       width=self.m2_width, 
                                       height=dout_height)
-                        self.add_via(self.m1_stack, dout_off)
+                        self.add_via(self.m1_stack, (dout_off.x, dout_off.y-self.via_yshift))
 
                     else: 
                         dout_off1 = self.inbank_inst[0].get_pin("dout[{0}]".format(i))
@@ -738,7 +737,7 @@ class sram(design.design):
                                   offset=din_off, 
                                   width=self.m2_width, 
                                   height=din_height)
-                    self.add_via(self.m1_stack, din_off)
+                    self.add_via(self.m1_stack, (din_off.x, din_off.y-self.via_yshift))
     
                     if (self.inbank_orien == "H"): 
                         dout_off = vector(self.inbank_inst[k].get_pin("dout[{0}]".format(i)).ll().x, 
@@ -750,7 +749,7 @@ class sram(design.design):
                                       offset=dout_off, 
                                       width=self.m2_width, 
                                       height=dout_height)
-                        self.add_via(self.m1_stack, dout_off)
+                        self.add_via(self.m1_stack, (dout_off.x, dout_off.y-self.via_yshift))
 
                     else: 
                         
@@ -789,12 +788,12 @@ class sram(design.design):
                                   offset=din_off1, 
                                   width=self.m2_width, 
                                   height=din1_height)
-                    self.add_via(self.m1_stack, din_off1)
+                    self.add_via(self.m1_stack, (din_off1.x, din_off1.y-self.via_yshift))
                     self.add_rect(layer="metal2", 
                                   offset=din_off2, 
                                   width=self.m2_width, 
                                   height=din2_height)
-                    self.add_via(self.m1_stack, din_off2)
+                    self.add_via(self.m1_stack, (din_off2.x, din_off2.y-self.via_yshift))
     
                     if (self.inbank_orien == "H"): 
                         dout_off1 = vector(self.inbank_inst[k].get_pin("dout[{0}]".format(i)).ll().x, 
@@ -812,12 +811,12 @@ class sram(design.design):
                                       offset=dout_off1, 
                                       width=self.m2_width, 
                                       height=dout1_height)
-                        self.add_via(self.m1_stack, dout_off1)
+                        self.add_via(self.m1_stack, (dout_off1.x, dout_off1.y-self.via_yshift))
                         self.add_rect(layer="metal2", 
                                       offset=dout_off2, 
                                       width=self.m2_width, 
                                       height=dout2_height)
-                        self.add_via(self.m1_stack, dout_off2)
+                        self.add_via(self.m1_stack, (dout_off2.x, dout_off2.y-self.via_yshift))
 
                         x_off = self.inbank_inst[1].lr().x+(i+3)*self.m_pitch("m1")
                         self.add_wire(self.m1_stack, 
@@ -880,12 +879,12 @@ class sram(design.design):
                                   offset=addr_off, 
                                   width=self.m2_width, 
                                   height=addr_height)
-                    self.add_via(self.m1_stack, addr_off)
+                    self.add_via(self.m1_stack, (addr_off.x, addr_off.y-self.via_yshift))
         
             # sel Connections
             for k in range(self.num_outbanks):
                sel_off = vector(self.inbank_inst[k].get_pin("S").ll().x,
-                                   self.H_ctrl_bus_pos["sel[{0}]".format(k)][1] - 0.5*self.m1_width)
+                                self.H_ctrl_bus_pos["sel[{0}]".format(k)][1] - 0.5*self.m1_width)
                sel_heigh =  self.inbank_inst[k].get_pin("S").lc().y - \
                             self.H_ctrl_bus_pos["sel[{0}]".format(k)][1]
             
@@ -893,8 +892,8 @@ class sram(design.design):
                              offset=sel_off, 
                              width=self.m2_width, 
                              height=sel_heigh)
-               self.add_via(self.m1_stack, sel_off)
-               self.add_via(self.m1_stack, (sel_off.x,self.inbank_inst[k].get_pin("S").ll().y ))
+               self.add_via(self.m1_stack, (sel_off.x+self.m2_width, sel_off.y), rotate=90)
+               self.add_via(self.m1_stack, (sel_off.x,self.inbank_inst[k].get_pin("S").ll().y -self.via_yshift))
             
             # control signal Connections
             for k in range(self.num_outbanks):
@@ -914,7 +913,7 @@ class sram(design.design):
                                   offset=split_off, 
                                   width=self.m2_width, 
                                   height=split_heigh)
-                    self.add_via(self.m1_stack, split_off)
+                    self.add_via(self.m1_stack, (split_off.x, split_off.y-self.via_yshift))
         
         
             # vdd and gnd Connections
@@ -932,7 +931,7 @@ class sram(design.design):
                     self.add_wire(self.m1_stack,[pow_off,(pow_off.x,pow_pin.lc().y),
                                                 (pow_pin.lr().x,pow_pin.lc().y)]) 
                     self.add_via(self.m1_stack, 
-                                 (pow_off.x-0.5*self.m1_width, pow_off.y))
+                                 (pow_off.x-0.5*self.m1_width, pow_off.y-self.via_yshift))
             
             for k in range(self.num_outbanks):
                 reset_pin = self.inbank_inst[k].get_pin("reset")
@@ -945,7 +944,7 @@ class sram(design.design):
 
                 self.add_wire(self.m1_stack, [reset_off,(reset_off.x,reset_pin.lc().y),
                                              (reset_pin.lr().x,reset_pin.lc().y)]) 
-                self.add_via(self.m1_stack, (reset_off.x-0.5*self.m1_width, reset_off.y))
+                self.add_via(self.m1_stack, (reset_off.x-0.5*self.m1_width, reset_off.y-self.via_yshift))
 
             # split_merge_control_inst Connections
             ctrl_pin_list = ["wack", "wreq",  "rreq", "rack", "ack", "rw",  "w", "r", 
@@ -961,7 +960,7 @@ class sram(design.design):
                               offset=ctrl_off, 
                               width=self.m2_width, 
                               height=ctrl_heigh)
-                self.add_via(self.m1_stack, ctrl_off)        
+                self.add_via(self.m1_stack, (ctrl_off.x, ctrl_off.y-self.via_yshift))        
             
             
             power_pin =["vdd", "gnd"]
@@ -975,7 +974,7 @@ class sram(design.design):
                           offset=power_off, 
                           width=self.m2_width, 
                           height=power_heigh)
-                self.add_via(self.m1_stack, power_off)        
+                self.add_via(self.m1_stack, (power_off.x, power_off.y-self.via_yshift))        
 
             if self.num_outbanks == 2:
                 addr_pin = ["addr[0]","sel[0]", "sel[1]"]
@@ -993,7 +992,7 @@ class sram(design.design):
                               offset=addr_off, 
                               width=self.m2_width, 
                               height=addr_heigh)
-                self.add_via(self.m1_stack, addr_off)        
+                self.add_via(self.m1_stack, (addr_off.x,addr_off.y-self.via_yshift))        
 
         if (self.num_outbanks == 4 and self.outbank_orien == "V"):
             # Addr Connections
@@ -1014,12 +1013,12 @@ class sram(design.design):
                                   offset=addr1_off, 
                                   width=self.m2_width, 
                                   height=addr1_height)
-                    self.add_via(self.m1_stack, addr1_off)
+                    self.add_via(self.m1_stack, (addr1_off.x, addr1_off.y-self.via_yshift))
                     self.add_rect(layer="metal2", 
                                   offset=addr2_off, 
                                   width=self.m2_width, 
                                   height=addr2_height)
-                    self.add_via(self.m1_stack, addr2_off)
+                    self.add_via(self.m1_stack, (addr2_off.x, addr2_off.y-self.via_yshift))
                     
                     x_off = self.inbank_inst[1].lr().x+(i+2*self.word_size+3)*self.m_pitch("m1")
                     self.add_wire(self.m1_stack, 
@@ -1044,17 +1043,17 @@ class sram(design.design):
                               offset=sel1_off, 
                               width=self.m2_width, 
                               height=sel1_heigh)
-                self.add_via(self.m1_stack,  sel1_off)
+                self.add_via(self.m1_stack,  (sel1_off.x, sel1_off.y-self.via_yshift))
                 self.add_via(self.m1_stack, 
-                             (sel1_off.x,self.inbank_inst[k].get_pin("S").ll().y ))
+                             (sel1_off.x,self.inbank_inst[k].get_pin("S").ll().y-self.via_yshift ))
 
                 self.add_rect(layer="metal2", 
                               offset=sel2_off, 
                               width=self.m2_width, 
                               height=sel2_heigh)
-                self.add_via(self.m1_stack, sel2_off)
+                self.add_via(self.m1_stack, (sel2_off.x, sel2_off.y-self.via_yshift))
                 self.add_via(self.m1_stack, 
-                             (sel2_off.x,self.inbank_inst[k+2].get_pin("S").ll().y ))
+                             (sel2_off.x,self.inbank_inst[k+2].get_pin("S").ll().y-self.via_yshift ))
 
             # control signal Connections
             for k in range(self.num_outbanks/2):
@@ -1078,7 +1077,7 @@ class sram(design.design):
                                   offset=split1_off, 
                                   width=self.m2_width, 
                                   height=split1_heigh)
-                    self.add_via(self.m1_stack, split1_off)
+                    self.add_via(self.m1_stack, (split1_off.x, split1_off.y-self.via_yshift))
                     split2_off = vector(self.inbank_inst[k+2].get_pin(split_list[i]).ll().x,
                                            self.H2_ctrl_bus_pos[split_ctrl_list2[i]][1]- \
                                            0.5*self.m1_width)
@@ -1088,7 +1087,7 @@ class sram(design.design):
                                   offset=split2_off, 
                                   width=self.m2_width, 
                                   height=split2_heigh)
-                    self.add_via(self.m1_stack, split2_off)
+                    self.add_via(self.m1_stack, (split2_off.x, split2_off.y-self.via_yshift))
 
         
             # vdd and gnd Connections
@@ -1100,7 +1099,7 @@ class sram(design.design):
                               [vdd1_off,(vdd1_off.x, vdd1_pin.lc().y),
                                 (vdd1_pin.lr().x, vdd1_pin.lc().y)]) 
                 self.add_via(self.m1_stack, 
-                             (vdd1_off.x-0.5*self.m1_width, vdd1_off.y))
+                             (vdd1_off.x-0.5*self.m1_width, vdd1_off.y-self.via_yshift))
         
                 gnd1_pin = self.inbank_inst[k].get_pin("gnd")
                 gnd1_off = vector(gnd1_pin.ll().x-2*self.m_pitch("m1"), 
@@ -1109,7 +1108,7 @@ class sram(design.design):
                               [gnd1_off,(gnd1_off.x, gnd1_pin.lc().y),
                                 (gnd1_pin.lr().x, gnd1_pin.lc().y)]) 
                 self.add_via(self.m1_stack, 
-                             (gnd1_off.x-0.5*self.m1_width, gnd1_off.y))
+                             (gnd1_off.x-0.5*self.m1_width, gnd1_off.y-self.via_yshift))
                 
                 reset1_pin = self.inbank_inst[k].get_pin("reset")
                 reset1_off = vector(reset1_pin.ll().x-3*self.m_pitch("m1"), 
@@ -1118,7 +1117,7 @@ class sram(design.design):
                               [reset1_off,(reset1_off.x, reset1_pin.lc().y),
                                 (reset1_pin.lr().x, reset1_pin.lc().y)]) 
                 self.add_via(self.m1_stack, 
-                             (reset1_off.x-0.5*self.m1_width, reset1_off.y))
+                             (reset1_off.x-0.5*self.m1_width, reset1_off.y-self.via_yshift))
 
             
                 vdd2_pin = self.inbank_inst[k+2].get_pin("vdd")
@@ -1128,7 +1127,7 @@ class sram(design.design):
                               [vdd2_off,(vdd2_off.x, vdd2_pin.lc().y),
                                            (vdd2_pin.lr().x, vdd2_pin.lc().y)]) 
                 self.add_via(self.m1_stack, 
-                             (vdd2_off.x-0.5*self.m1_width, vdd2_off.y))
+                             (vdd2_off.x-0.5*self.m1_width, vdd2_off.y-self.via_yshift))
         
                 gnd2_pin = self.inbank_inst[k+2].get_pin("gnd")
                 gnd2_off = vector(gnd2_pin.ll().x-2*self.m_pitch("m1"), 
@@ -1137,7 +1136,7 @@ class sram(design.design):
                               [gnd2_off,(gnd2_off.x, gnd2_pin.lc().y),
                                            (gnd2_pin.lr().x, gnd2_pin.lc().y)]) 
                 self.add_via(self.m1_stack, 
-                             (gnd2_off.x-0.5*self.m1_width, gnd2_off.y))
+                             (gnd2_off.x-0.5*self.m1_width, gnd2_off.y-self.via_yshift))
 
                 reset2_pin = self.inbank_inst[k+2].get_pin("reset")
                 reset2_off = vector(reset2_pin.ll().x-3*self.m_pitch("m1"), 
@@ -1146,7 +1145,7 @@ class sram(design.design):
                               [reset2_off,(reset2_off.x, reset2_pin.lc().y),
                                           (reset2_pin.lr().x, reset2_pin.lc().y)]) 
                 self.add_via(self.m1_stack, 
-                             (reset2_off.x-0.5*self.m1_width, reset2_off.y))
+                             (reset2_off.x-0.5*self.m1_width, reset2_off.y-self.via_yshift))
 
             reset_xoff = self.inbank_inst[1].lr().x+\
                          (self.inbank_addr_size+2*self.word_size+3)*self.m_pitch("m1")
@@ -1176,8 +1175,8 @@ class sram(design.design):
                               offset=ctrl_off, 
                               width=self.m2_width, 
                               height=ctrl_heigh)
-                self.add_via(self.m1_stack, ctrl_off)
-                self.add_via(self.m1_stack, ctrl2_off)        
+                self.add_via(self.m1_stack, (ctrl_off.x, ctrl_off.y-self.via_yshift))
+                self.add_via(self.m1_stack, (ctrl2_off.x, ctrl2_off.y-self.via_yshift))        
             
             power_pin =["vdd", "gnd"]
             for i in range(2):
@@ -1193,8 +1192,8 @@ class sram(design.design):
                               offset=power_off, 
                               width=self.m2_width, 
                               height=power_heigh)
-                self.add_via(self.m1_stack, power_off)
-                self.add_via(self.m1_stack, power2_off)                
+                self.add_via(self.m1_stack, (power_off.x, power_off.y-self.via_yshift))
+                self.add_via(self.m1_stack, (power2_off.x, power2_off.y-self.via_yshift))                
 
             if self.num_outbanks == 2:
                 addr_pin = ["addr[0]","sel[0]", "sel[1]"]
@@ -1215,8 +1214,8 @@ class sram(design.design):
                               offset=addr_off, 
                               width=self.m2_width, 
                               height=addr_heigh)
-                self.add_via(self.m1_stack, addr_off)
-                self.add_via(self.m1_stack, addr2_off)        
+                self.add_via(self.m1_stack, (addr_off.x, addr_off.y-self.via_yshift))
+                self.add_via(self.m1_stack, (addr2_off.x, addr2_off.y-self.via_yshift))        
 
         # select= vdd Connection
         sel_pos1=self.out_split_mrg_ctrl_inst.get_pin("S").uc()

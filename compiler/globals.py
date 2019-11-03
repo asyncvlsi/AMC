@@ -2,11 +2,10 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
 
-"""
-This parses all the arguments and performs the global AMC setup.
-"""
+
+""" This parses all the arguments and performs the global AMC setup. """
 import os
 import debug
 import shutil
@@ -45,6 +44,9 @@ def parse_args():
         optparse.make_option("-t", "--tech", 
                              dest="tech_name",
                              help="Technology name"),
+        optparse.make_option("-s", "--spice", 
+                             dest="spice_name",
+                             help="Spice simulator executable name"),
         optparse.make_option("-r", "--remove_netlist_trimming", 
                              action="store_false", dest="trim_netlist",
                              help="Disable removal of noncritical memory cells during characterization"),
@@ -216,7 +218,7 @@ def setup_paths():
 
     # Add all of the subdirs to the python path
     # characterizer is a module and doesn't need to be added
-    for subdir in ["gdsMill", "tests", "modules", "base"]:
+    for subdir in ["gdsMill", "tests", "modules", "base", "bist", "sync_interface"]:
         full_path = "{0}/{1}".format(AMC_HOME, subdir)
         debug.check(os.path.isdir(full_path),
                     "$AMC_HOME/{0} does not exist: {1}".format(subdir,full_path))

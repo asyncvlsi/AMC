@@ -2,7 +2,8 @@
 # Copyright (c) 2016-2019 Regents of the University of California 
 # and The Board of Regents for the Oklahoma Agricultural and 
 # Mechanical College (acting for and on behalf of Oklahoma State University)
-#All rights reserved.
+# All rights reserved.
+
 
 import optparse
 import getpass 
@@ -20,6 +21,7 @@ class options(optparse.Values):
     tech_name = "scn3me_subm"
     
     # This is the temp directory where all intermediate results are stored.
+    #AMC_temp = "/SAY/standard/rm2267-654001-SEAS/users/fa292/AMC/compiler/tmp/"
     AMC_temp = os.path.abspath(os.environ.get("AMC_HOME")) + "/tmp/"
     
     # This is the verbosity level to control debug information. 0 is none, 1 is minimal, etc.
@@ -57,7 +59,9 @@ class options(optparse.Values):
     
     #run the charactrizer
     characterize = False
+    
 
-
+    #Add the synchronous interface
+    add_sync_interface = False
 
 
