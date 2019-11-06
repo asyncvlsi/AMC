@@ -520,6 +520,9 @@ class layout(lef.lef):
         pin_names = copy.deepcopy(self.pins)
         if self.name.startswith("pmos") or self.name.startswith("nmos"):
             pin_names.remove("B")
+        if self.name.startswith("tgate"):
+            pin_names.remove("vdd")
+            pin_names.remove("gnd")
             
         blockages = []
         for pin_name in pin_names:

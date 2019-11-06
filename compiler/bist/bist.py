@@ -13,8 +13,11 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor,
 # Boston, MA  02110-1301, USA. (See LICENSE for licensing information)
 
-
+import sys
+import datetime
+import getpass
 import design
+from globals import OPTS, print_time
 import debug
 import contact
 import math
@@ -31,9 +34,11 @@ from xor2 import xor2
 class bist(design.design):
     """ Dynamically generated bist """
 
-    def __init__(self, addr_size, data_size, delay, async_bist, name="bist"):
+    def __init__(self, addr_size, data_size, delay = 0, async_bist = True, name="bist"):
         """ Constructor """
 
+        design.design.name_map=[]
+        start_time = datetime.datetime.now()
         design.design.__init__(self, name)
         debug.info(1, "Creating {}".format(name))
 
@@ -58,18 +63,24 @@ class bist(design.design):
         self.height=self.max_yoff - self.min_yoff 
 
     def add_pins(self):
-        """ Adds pins for lfsr module """
+        """ Adds pins for BIST module """
         
         for i in range(self.addr_size):
-            self.add_pin("addr{0}".format(i))
+            self.add_pin("addr{0}".format(i),"INPUT")
         for i in range(self.data_size):
-            self.add_pin("din{0}".format(i))
+            self.add_pin("din{0}".format(i),"INPUT")
         for i in range(self.data_size):
-            self.add_pin("dout{0}".format(i))
-        if self.async_bist:
-            self.add_pin_list(["reset", "r", "w", "test", "finish", "error", "vdd", "gnd"])
-        else:
-            self.add_pin_list(["reset", "r", "w", "test", "finish", "error", "external_clk", "vdd", "gnd"])
+            self.add_pin("dout{0}".format(i),"OUTPUT")
+        
+        self.add_pin_list(["reset", "r", "w", "test"],"INPUT")
+        
+        if not self.async_bist:
+            self.add_pin("external_clk","INPUT")
+
+        self.add_pin_list(["finish", "error"],"OUTPUT")
+        
+        self.add_pin("vdd","POWER")
+        self.add_pin("gnd","GROUND")
 
     def create_modules(self):
         """ Construct all the required modules """
@@ -480,3 +491,42 @@ class bist(design.design):
                                 offset=(pos3.x-self.m1_width, pos3.y-0.5*self.m1_width),
                                 width=self.m1_width,
                                 height = self.m1_width)
+
+    def sp_write(self, sp_name):
+        """ Write the entire spice of the object to the file """
+        sp = open(sp_name, 'w')
+
+        sp.write("**************************************************\n")
+        sp.write("* AMC generated BIST.\n")
+        sp.write("**************************************************\n")        
+        usedMODS = list()
+        self.sp_write_file(sp, usedMODS)
+        del usedMODS
+        sp.close()
+
+
+    def save_output(self):
+        """ Save spice, gds and lef files while reporting time to do it as well. """
+        
+        # Write spice 
+        start_time = datetime.datetime.now()
+        spname = OPTS.output_path + "AMC_BIST.sp"
+        print("\n BIST SP: Writing to {0}".format(spname))
+        self.sp_write(spname)
+        print_time("BIST Spice writing", datetime.datetime.now(), start_time)
+
+        
+        # Write layout
+        start_time = datetime.datetime.now()
+        gdsname = OPTS.output_path + "AMC_BIST.gds"
+        print("\n BIST GDS: Writing to {0}".format(gdsname))
+        self.gds_write(gdsname)
+        print_time("BIST GDS writing", datetime.datetime.now(), start_time)
+
+
+        # Write lef 
+        start_time = datetime.datetime.now()
+        lefname = OPTS.output_path + "AMC_BIST.lef"
+        print("\n BIST LEF: Writing to {0}".format(lefname))
+        self.lef_write(lefname)
+        print_time("LEF", datetime.datetime.now(), start_time)

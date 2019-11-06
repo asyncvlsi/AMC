@@ -16,13 +16,21 @@
 
 word_size = 32
 words_per_row = 1
-num_rows= 64
+num_rows = 64
 num_subanks = 4
 branch_factors = (1,4)
 bank_orientations = ("V", "H")
 name = "AMC_SRAM"
-output_path = "amc_scn3m_subm"
-add_sync_interface=True
+
+add_sync_interface = True
+
+create_bist = True
+#define sram access time (ns) for asynchronous BIST only
+bist_delay = 5
+
+
+output_path = "amc_scn3me_subm"
+
 
 tech_name = "scn3me_subm"
 process_corners = ["TT"]

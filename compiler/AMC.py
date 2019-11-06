@@ -51,10 +51,6 @@ report_status()
 
 # Start importing design modules after we have the config file
 
-
-
-print("\n Output files are " + OPTS.output_name + ".(sp|gds|v|lef)")
-
 # Characterizer is slow and deactivated by default
 print("For .lib file: set the \"characterize = True\" in options.py, invoke Synopsys HSIM and VCS tools and rerun.\n")
 
@@ -65,6 +61,7 @@ print_time("Start",start_time)
 # import SRAM test generation
 if OPTS.add_sync_interface:
     import sync_sram
+    
     s = sync_sram.sync_sram(word_size=OPTS.word_size,
                             words_per_row=OPTS.words_per_row, 
                             num_rows=OPTS.num_rows, 
@@ -72,6 +69,18 @@ if OPTS.add_sync_interface:
                             branch_factors=OPTS.branch_factors, 
                             bank_orientations=OPTS.bank_orientations, 
                             name=OPTS.name)
+
+    s.save_output()
+    
+    if OPTS.create_bist:
+        import bist
+        
+        b = bist.bist(addr_size=s.addr_size, 
+                      data_size=OPTS.word_size, 
+                      delay = 0, 
+                      async_bist=False)
+
+        b.save_output()
 
 else:
     import sram
@@ -82,11 +91,23 @@ else:
                   branch_factors=OPTS.branch_factors, 
                   bank_orientations=OPTS.bank_orientations, 
                   name=OPTS.name)
+
+    s.save_output()
+    
+    if OPTS.create_bist:
+        import bist
+        
+        b = bist.bist(addr_size=s.addr_size, 
+                      data_size=OPTS.word_size, 
+                      delay = OPTS.bist_delay, 
+                      async_bist=True)
+
+        b.save_output()
+
+
 OPTS.check_lvsdrc = True
 
-s.save_output()
 
-# Delete temp files etc.
 end_AMC()
 print_time("End",datetime.datetime.now(), start_time)
 
