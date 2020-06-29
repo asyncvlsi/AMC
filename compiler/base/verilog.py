@@ -19,6 +19,7 @@ import debug
 class verilog:
     """ Create a behavioral Verilog file for simulation."""
 
+    
     def verilog_write(self,verilog_name):
         """ Write a behavioral Verilog model. """
         
@@ -52,12 +53,13 @@ class verilog:
         self.vf.write("  reg ack;\n")
         self.vf.write("  reg rack;\n")
         self.vf.write("  reg wack;\n")
+        self.vf.write("  reg wreqM;\n")
         self.vf.write("  reg [DATA_WIDTH-1:0] data_out;\n")
         self.vf.write("  reg [DATA_WIDTH-1:0] mem [0:RAM_DEPTH-1];\n")
         self.vf.write("  integer i;\n")
         self.vf.write("\n")
-        self.vf.write("  // Tri-State Buffer control\n")
-        self.vf.write("  assign DATA = ((r && rreq) || (rw && rreq &&!wreq)) ? data_out : {0}'bz;\n".format(self.word_size))
+        #self.vf.write("  // Tri-State Buffer control\n")
+        #self.vf.write("  assign DATA = ((r && rreq) || (rw && rreq &&!wreq)) ? data_out : {0}'bz;\n".format(self.word_size))
         self.vf.write("\n")    
         
         self.vf.write("  // Memory Reset Block\n")
@@ -66,20 +68,28 @@ class verilog:
         self.vf.write("  begin : MEM_RESET\n")
         self.vf.write("    for(i=0; i<2**{0}; i=i+1)\n".format(self.addr_size))
         self.vf.write("        mem[i] = {0}'b0;\n".format(self.word_size))
-        self.vf.write("    $display($time,\" Reseting MEM);\n")
-        self.vf.write("    end\n")
+        self.vf.write("    $display($time,\" Reseting MEM\");\n")
         self.vf.write("  end\n\n")
         self.vf.write("\n")    
+
+
+        self.vf.write("  always @ (posedge ack) begin\n")
+        self.vf.write("        rack <= #(DELAY) 1'b0;\n")
+        self.vf.write("        wack <= #(DELAY) 1'b0;\n")
+        self.vf.write("        ack <= #(DELAY) 1'b0;\n")
+        self.vf.write("  end\n\n")
+
 
         self.vf.write("  // Memory Write Block\n")
         self.vf.write("  // Write Operation : When wreq = 1\n")
         self.vf.write("  always @ (negedge ack)\n")
         self.vf.write("  if (!reset) begin : MEM_WRITE\n")
-        self.vf.write("  if ((w && wreq) || (rw && wreq)) begin\n")
-        self.vf.write("    mem[ADDR] = DATA;\n")
+        self.vf.write("  if ((w && wreq) || (rw && wreqM)) begin\n")
+        self.vf.write("    mem[addr] = data_in;\n")
         self.vf.write("    wack <= #(DELAY) 1'b1;\n")
-        self.vf.write("    $display($time,\" Writing %m ABUS=%b DATA=%b\",ADDR,DATA);\n")
-        self.vf.write("    end\n")
+        self.vf.write("    ack <= #(DELAY) 1'b1;\n")
+        self.vf.write("    $display($time,\" Writing %m ADDR=%b DATA_IN=%b\",addr,data_in);\n")
+        self.vf.write("  end\n")
         self.vf.write("  end\n\n")
         self.vf.write("\n")    
         
@@ -87,11 +97,17 @@ class verilog:
         self.vf.write("  // Read Operation : When rreq = 1\n")
         self.vf.write("  always @ (negedge ack)\n")
         self.vf.write("  if (!reset) begin : MEM_READ\n")
-        self.vf.write("  if ((r && rreq) || (rw && rreq)) begin\n")
-        self.vf.write("    data_out <= #(DELAY) mem[ADDR];\n")
+        self.vf.write("  if ((r || rw) && rreq) begin\n")
+        self.vf.write("    data_out <= #(DELAY) mem[addr];\n")
         self.vf.write("    rack <= #(DELAY) 1'b1;\n")
-        self.vf.write("    $display($time,\" reading %m ABUS=%b DATA=%b\",ADDR,DATA);\n")
+        self.vf.write("    $display($time,\" reading %m ADDR=%b DATAOUT=%b\",addr,data_out);\n")
+        self.vf.write("    if (rw) begin\n")
+        self.vf.write("        wreqM <= #(DELAY) 1'b1;\n")
         self.vf.write("    end\n")
+        self.vf.write("    if (r) begin\n")
+        self.vf.write("        ack <= #(DELAY) 1'b1;\n")
+        self.vf.write("    end\n")
+        self.vf.write("  end\n")
         self.vf.write("  end\n\n")
         self.vf.write("\n")    
         self.vf.write("\n")    
