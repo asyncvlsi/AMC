@@ -35,7 +35,7 @@ class verilog:
         self.vf.write("  parameter DATA_WIDTH = {0} ;\n".format(self.word_size))
         self.vf.write("  parameter ADDR_WIDTH = {0} ;\n".format(self.addr_size))
         self.vf.write("  parameter RAM_DEPTH = 1 << ADDR_WIDTH;\n")
-        self.vf.write("  parameter DELAY = 3 ;\n")
+        self.vf.write("  parameter DELAY = 1 ;\n")
         self.vf.write("\n")    
         self.vf.write("  input [DATA_WIDTH-1:0] data_in;\n")
         self.vf.write("  output [DATA_WIDTH-1:0] data_out;\n")
@@ -58,8 +58,6 @@ class verilog:
         self.vf.write("  reg [DATA_WIDTH-1:0] mem [0:RAM_DEPTH-1];\n")
         self.vf.write("  integer i;\n")
         self.vf.write("\n")
-        #self.vf.write("  // Tri-State Buffer control\n")
-        #self.vf.write("  assign DATA = ((r && rreq) || (rw && rreq &&!wreq)) ? data_out : {0}'bz;\n".format(self.word_size))
         self.vf.write("\n")    
         
         self.vf.write("  // Memory Reset Block\n")
@@ -82,7 +80,7 @@ class verilog:
 
         self.vf.write("  // Memory Write Block\n")
         self.vf.write("  // Write Operation : When wreq = 1\n")
-        self.vf.write("  always @ (negedge ack)\n")
+        self.vf.write("  always @ (posedge (w || wreqM))\n")
         self.vf.write("  if (!reset) begin : MEM_WRITE\n")
         self.vf.write("  if ((w && wreq) || (rw && wreqM)) begin\n")
         self.vf.write("    mem[addr] = data_in;\n")
@@ -95,7 +93,7 @@ class verilog:
         
         self.vf.write("  // Memory Read Block\n")
         self.vf.write("  // Read Operation : When rreq = 1\n")
-        self.vf.write("  always @ (negedge ack)\n")
+        self.vf.write("  always @ (posedge (r || rw))\n")
         self.vf.write("  if (!reset) begin : MEM_READ\n")
         self.vf.write("  if ((r || rw) && rreq) begin\n")
         self.vf.write("    data_out <= #(DELAY) mem[addr];\n")
@@ -113,4 +111,3 @@ class verilog:
         self.vf.write("\n")    
         self.vf.write("endmodule\n")
         self.vf.close()
-
